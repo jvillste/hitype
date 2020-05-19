@@ -1,5 +1,6 @@
 (ns hitype.hero
   (:require [flow-gl.gui.visuals :as visuals]
+            [medley.core :as medley]
             [fungl.application :as application]
             [fungl.layout :as layout]
             [fungl.layouts :as layouts]
@@ -51,7 +52,7 @@
                :pressed-key nil
                :key-pressed-time nil)))
 
-(def grid-size 60)
+(def grid-size 160)
 
 (defn tile [{:keys [x y image health]}]
   (assoc (layouts/vertically-2 {:margin 3}
@@ -70,21 +71,31 @@
 
 ;; state
 
+(defn update-actor [game-state actor-id function & parameters]
+  (apply update-in
+         game-state
+         [:actors actor-id]
+         function
+         parameters))
+
 (defn constrain [minimum maximum value]
   (min (max minimum value)
        maximum))
 
-(defn update-dragon [dragon-state game-state]
-  (let [time-now (animation/time!)]
-    (if (or (nil? (:last-move-time dragon-state))
-            (< 500
-               (- time-now
-                  (:last-move-time dragon-state))))
-      (let [dragon-state (assoc dragon-state :last-move-time time-now)]
-        (if (< 0.5 (rand))
-          (update dragon-state :x (fn [x] (constrain 0 15 (inc x))))
-          (update dragon-state :x (fn [x] (constrain 0 15 (dec x))))))
-      dragon-state)))
+(defn update-dragon [actor-id game-state]
+  (update-actor game-state
+                actor-id
+                (fn [dragon-state]
+                  (let [time-now (animation/time!)]
+                    (if (or (nil? (:last-move-time dragon-state))
+                            (< 1500
+                               (- time-now
+                                  (:last-move-time dragon-state))))
+                      (let [dragon-state (assoc dragon-state :last-move-time time-now)]
+                        (if (< 0.5 (rand))
+                          (update dragon-state :x (fn [x] (constrain 0 15 (inc x))))
+                          (update dragon-state :x (fn [x] (constrain 0 15 (dec x))))))
+                      dragon-state)))))
 
 (defn update-wheat [wheat-state game-state]
   (let [time-now (animation/time!)]
@@ -106,11 +117,12 @@
            :image (get wheat 0)
            :update-function #'update-wheat}))
 
-(defn update-state [state]
-  (let [state (update state :actors (fn [actors]
-                                      (for [actor actors]
-                                        ((:update-function actor) actor state))))]
-    state))
+(defn update-state [game-state]
+  (reduce (fn [game-state actor-id]
+            ((get-in game-state [:actors actor-id :update-function])
+             actor-id game-state))
+          game-state
+          (keys (:actors game-state))))
 
 (defn start-update-loop [state-atom]
   (future (loop []
@@ -118,46 +130,85 @@
             (swap! state-atom update-state)
             (recur))))
 
-(defn update-player [player-state game-state]
+(defn actors-in-coordinates [game-state x y]
+  (filter (fn [actor]
+            (and (= x (:x actor))
+                 (= y (:y actor))))
+          (vals (:actors game-state))))
+
+(defn actor-state [game-state actor-id]
+  (get-in game-state [:actors actor-id]))
+
+(defn update-player [player-actor-id game-state]
   (let [time-now (animation/time!)]
     (cond
       (and (:pressed-key game-state)
-           (or (nil? (:last-move-time player-state))
-               (< 200
-                  (- time-now
-                     (:last-move-time player-state)))))
-      (let [player-state (assoc player-state :last-move-time time-now)]
-        (case (:pressed-key game-state)
-          :right (update player-state :x inc)
-          :left (update player-state :x dec)
-          :down (update player-state :y inc)
-          :up (update player-state :y dec)
-          player-state))
+           (let [last-move-time (:last-move-time (actor-state game-state
+                                                              player-actor-id))]
+             (or (nil? last-move-time)
+                 (< 200
+                    (- time-now
+                       last-move-time)))))
+      (let [game-state (update-actor game-state
+                                     player-actor-id
+                                     assoc :last-move-time time-now)
+            next-coordinates (let [{:keys [x y]} (actor-state game-state
+                                                              player-actor-id)]
+                               (case (:pressed-key game-state)
+                                 :right {:x (inc x)
+                                         :y y}
+                                 :left {:x (dec x)
+                                        :y y}
+                                 :down {:x x
+                                        :y (inc y)}
+                                 :up {:x x
+                                      :y (dec y)}
+                                 {:x x
+                                  :y y}))]
+
+        (if-let [target-actor (first (actors-in-coordinates game-state
+                                                            (:x next-coordinates)
+                                                            (:y next-coordinates)))]
+          (do (println "attack!" target-actor)
+              (update-actor game-state
+                            (:id target-actor)
+                            update :health dec))
+          (update-actor game-state
+                        player-actor-id
+                        merge next-coordinates)))
 
       :default
-      player-state)))
+      game-state)))
+
+(def next-id-atom (atom 0))
+
+(defn new-id []
+  (swap! next-id-atom inc))
+
+(defn add-actor [state actor]
+  (let [id (new-id)]
+   (assoc-in state [:actors id] (assoc actor :id id))))
 
 (defn initial-state []
-  {:actors (concat [{:x 0
-                     :y 0
-                     :health 10
-                     :image #'hero
-                     :update-function #'update-player}]
-                   (take 30 (repeatedly (fn []
-                                          {:x (rand-int 30)
-                                           :y (rand-int 30)
-                                           :health 3
-                                           :image #'dragon
-                                           :update-function #'update-dragon}))))})
+  (reduce add-actor
+          {:actors {}}
+          (concat [{:x 0
+                    :y 0
+                    :health 10
+                    :image #'hero
+                    :update-function #'update-player}]
+                  (take 30 (repeatedly (fn []
+                                         {:x (rand-int 30)
+                                          :y (rand-int 30)
+                                          :health 3
+                                          :image #'dragon
+                                          :update-function #'update-dragon}))))))
 
 (defn view [state-atom]
   (animation/swap-state! animation/set-wake-up 100)
   @animation/state-atom
-  (assoc (visuals/image heart)
-         :width 100
-         :height 100)
-  #_(layouts/superimpose
-   (for [actor (:actors @state-atom)]
+  (layouts/superimpose
+   (for [actor (vals (:actors @state-atom))]
      (tile actor))))
 
 (defn view-constructor []
@@ -175,6 +226,10 @@
 
 
 (comment
+  (application/start-window (fn []
+                              (visuals/text "haa" {:color [0 0 0 255]})))
+
+
   (with-bindings (application/create-event-handling-state)
     (layout/do-layout-for-size (view-compiler/compile (layouts/superimpose (tile 1 1 hero 2)))
                                500 500 ))
