@@ -52,7 +52,7 @@
                :pressed-key nil
                :key-pressed-time nil)))
 
-(def grid-size 160)
+(def grid-size 60)
 
 (defn tile [{:keys [x y image health]}]
   (assoc (layouts/vertically-2 {:margin 3}
@@ -71,6 +71,19 @@
 
 ;; state
 
+(def next-id-atom (atom 0))
+
+(defn new-id []
+  (swap! next-id-atom inc))
+
+(defn add-actor [state actor]
+  (let [id (new-id)]
+    (assoc-in state [:actors id] (assoc actor :id id))))
+
+(defn remove-actor [state actor-id]
+  (update state :actors dissoc actor-id))
+
+(dissoc {7 :a} 7)
 (defn update-actor [game-state actor-id function & parameters]
   (apply update-in
          game-state
@@ -119,8 +132,11 @@
 
 (defn update-state [game-state]
   (reduce (fn [game-state actor-id]
-            ((get-in game-state [:actors actor-id :update-function])
-             actor-id game-state))
+            (if (contains? (:actors game-state)
+                           actor-id)
+              ((get-in game-state [:actors actor-id :update-function])
+               actor-id game-state)
+              game-state))
           game-state
           (keys (:actors game-state))))
 
@@ -170,9 +186,13 @@
                                                             (:x next-coordinates)
                                                             (:y next-coordinates)))]
           (do (println "attack!" target-actor)
-              (update-actor game-state
-                            (:id target-actor)
-                            update :health dec))
+              (let [new-health (dec (:health target-actor))]
+                (if (>= 0 new-health)
+                  (remove-actor game-state
+                                (:id target-actor))
+                  (update-actor game-state
+                                (:id target-actor)
+                                update :health dec))))
           (update-actor game-state
                         player-actor-id
                         merge next-coordinates)))
@@ -180,14 +200,7 @@
       :default
       game-state)))
 
-(def next-id-atom (atom 0))
 
-(defn new-id []
-  (swap! next-id-atom inc))
-
-(defn add-actor [state actor]
-  (let [id (new-id)]
-   (assoc-in state [:actors id] (assoc actor :id id))))
 
 (defn initial-state []
   (reduce add-actor
