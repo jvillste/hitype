@@ -12,7 +12,9 @@
             [clojure.test :refer :all]
             [flow-gl.opengl.jogl.window :as jogl-window]
             [clojure.test :refer [deftest]]
-            #_[overtone.live :as live])
+            #_[overtone.live :as live]
+            [fungl.dependable-atom :as debendable-atom]
+            [flow-gl.gui.keyboard :as keyboard])
   (:import java.util.UUID))
 
 (def original-frames (buffered-image/gif-frames (io/resource "explosion.gif")))
@@ -88,35 +90,34 @@
                                                                               phase)
                                                          0
                                                          (dec (count frames)))))))))
-(defn view [state-atom]
-  (animation/swap-state! animation/set-wake-up 2000)
-  (let [state @state-atom]
-    (-> (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
-                             (layouts/with-margins 20 20 20 20
-                               (apply layouts/horizontally-2 {:margin 30}
-                                      #_(text (pr-str state))
-                                      (for [character-index (range (:typed-character-count state))]
-                                        (character-animation character-index
-                                                             (nth (:string state)
-                                                                  character-index))))))
-        (assoc :keyboard-event-handler (fn [event] (when (and (= :key-pressed (:type event))
-                                                              (= (nth (:string state)
-                                                                      (:typed-character-count state))
-                                                                 (:character event))
-                                                              (< (:typed-character-count state)
-                                                                 (count (:string state))))
-                                                     (animation/swap-state! animation/start (:typed-character-count state))
-                                                     (swap! state-atom update :typed-character-count inc)))))))
-
-(defn hitype []
-  (let [state-atom (atom {:string "hello"
-                          :typed-character-count 0})]
-    (fn [width height]
-      (-> (#'view state-atom)
-          #_(application/do-layout width height)))))
+(defn view []
+  (let [state-atom (debendable-atom/atom {:string "hello"
+                                          :typed-character-count 0})]
+    (fn []
+      (animation/swap-state! animation/set-wake-up 2000)
+      (keyboard/set-focused-event-handler! (fn [event]
+                                             (let [state @state-atom]
+                                               (when (and (= :key-pressed (:type event))
+                                                          (= (nth (:string state)
+                                                                  (:typed-character-count state))
+                                                             (:character event))
+                                                          (< (:typed-character-count state)
+                                                             (count (:string state))))
+                                                 (animation/swap-state! animation/start (:typed-character-count state))
+                                                 (swap! state-atom update :typed-character-count inc)))))
+      (let [state @state-atom]
+        (-> (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
+                                 (layouts/with-margins 20 20 20 20
+                                   (apply layouts/horizontally-2 {:margin 30}
+                                          #_(text (pr-str state))
+                                          (for [character-index (range (:typed-character-count state))]
+                                            (character-animation character-index
+                                                                 (nth (:string state)
+                                                                      character-index)))))))))))
 
 (defn start []
-  (application/start-window (hitype)
+  (application/start-window #'view)
+  #_(application/start-window (hitype)
                             :window
                             (jogl-window/create 600 1000
                                                 :close-automatically true)))

@@ -95,20 +95,35 @@
   (min (max minimum value)
        maximum))
 
-(defn update-dragon [actor-id game-state]
-  (update-actor game-state
-                actor-id
-                (fn [dragon-state]
-                  (let [time-now (animation/time!)]
-                    (if (or (nil? (:last-move-time dragon-state))
-                            (< 1500
-                               (- time-now
-                                  (:last-move-time dragon-state))))
-                      (let [dragon-state (assoc dragon-state :last-move-time time-now)]
-                        (if (< 0.5 (rand))
-                          (update dragon-state :x (fn [x] (constrain 0 15 (inc x))))
-                          (update dragon-state :x (fn [x] (constrain 0 15 (dec x))))))
-                      dragon-state)))))
+(defn attack [game-state target-actor]
+  (do (println "attack!" target-actor)
+      (let [new-health (dec (:health target-actor))]
+        (if (= 0 new-health)
+          (remove-actor game-state
+                        (:id target-actor))
+          (update-actor game-state
+                        (:id target-actor)
+                        update :health dec)))))
+
+(defn actors-in-coordinates [game-state x y]
+  (filter (fn [actor]
+            (and (= x (:x actor))
+                 (= y (:y actor))))
+          (vals (:actors game-state))))
+
+
+(defn- attack-or-move [game-state next-coordinates actor-id]
+  (if-let [target-actor (first (actors-in-coordinates game-state
+                                                      (:x next-coordinates)
+                                                      (:y next-coordinates)))]
+    (if (not (= actor-id
+                (:id target-actor)))
+      (attack game-state target-actor)
+      game-state)
+    (update-actor game-state
+                  actor-id
+                  merge next-coordinates)))
+
 
 (defn update-wheat [wheat-state game-state]
   (let [time-now (animation/time!)]
@@ -146,59 +161,63 @@
             (swap! state-atom update-state)
             (recur))))
 
-(defn actors-in-coordinates [game-state x y]
-  (filter (fn [actor]
-            (and (= x (:x actor))
-                 (= y (:y actor))))
-          (vals (:actors game-state))))
 
 (defn actor-state [game-state actor-id]
   (get-in game-state [:actors actor-id]))
 
-(defn update-player [player-actor-id game-state]
-  (let [time-now (animation/time!)]
-    (cond
-      (and (:pressed-key game-state)
-           (let [last-move-time (:last-move-time (actor-state game-state
-                                                              player-actor-id))]
-             (or (nil? last-move-time)
-                 (< 200
-                    (- time-now
-                       last-move-time)))))
-      (let [game-state (update-actor game-state
-                                     player-actor-id
-                                     assoc :last-move-time time-now)
-            next-coordinates (let [{:keys [x y]} (actor-state game-state
-                                                              player-actor-id)]
-                               (case (:pressed-key game-state)
-                                 :right {:x (inc x)
-                                         :y y}
-                                 :left {:x (dec x)
-                                        :y y}
-                                 :down {:x x
-                                        :y (inc y)}
-                                 :up {:x x
-                                      :y (dec y)}
-                                 {:x x
-                                  :y y}))]
-
-        (if-let [target-actor (first (actors-in-coordinates game-state
-                                                            (:x next-coordinates)
-                                                            (:y next-coordinates)))]
-          (do (println "attack!" target-actor)
-              (let [new-health (dec (:health target-actor))]
-                (if (>= 0 new-health)
-                  (remove-actor game-state
-                                (:id target-actor))
-                  (update-actor game-state
-                                (:id target-actor)
-                                update :health dec))))
-          (update-actor game-state
-                        player-actor-id
-                        merge next-coordinates)))
-
-      :default
+(defn act-with-throttle [game-state actor-id delay act-function]
+  (let [time-now (animation/time!)
+        last-move-time (:last-move-time (actor-state game-state
+                                                     actor-id))]
+    (if (or (nil? last-move-time)
+            (< delay
+               (- time-now
+                  last-move-time)))
+      (update-actor (act-function game-state)
+                    actor-id
+                    assoc :last-move-time time-now)
       game-state)))
+
+(defn update-dragon [actor-id game-state]
+  (act-with-throttle game-state
+                     actor-id
+                     1500
+                     (fn [game-state]
+                       (attack-or-move game-state
+                                       (update (select-keys (actor-state game-state
+                                                                         actor-id)
+                                                            [:x :y])
+                                               :x
+                                               #(constrain 0 15 ((if (< 0.5 (rand))
+                                                                   inc dec)
+                                                                 %)))
+                                       actor-id))))
+
+(defn update-player [actor-id game-state]
+  (act-with-throttle game-state
+                     actor-id
+                     200
+                     (fn [game-state]
+                       (cond
+                         (:pressed-key game-state)
+                         (let [next-coordinates (let [{:keys [x y]} (actor-state game-state
+                                                                                 actor-id)]
+                                                  (case (:pressed-key game-state)
+                                                    :right {:x (inc x)
+                                                            :y y}
+                                                    :left {:x (dec x)
+                                                           :y y}
+                                                    :down {:x x
+                                                           :y (inc y)}
+                                                    :up {:x x
+                                                         :y (dec y)}
+                                                    {:x x
+                                                     :y y}))]
+
+                           (attack-or-move game-state next-coordinates actor-id))
+
+                         :default
+                         game-state))))
 
 
 
@@ -246,4 +265,7 @@
   (with-bindings (application/create-event-handling-state)
     (layout/do-layout-for-size (view-compiler/compile (layouts/superimpose (tile 1 1 hero 2)))
                                500 500 ))
+
+  (repeat 10
+        (str "Moi " (read-line)))
   ) ;; TODO: remove-me
