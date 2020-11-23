@@ -25,7 +25,7 @@
                                                 (assoc :tapahtuman-kuvaus "Ei löytynyt mitään.")
                                                 (poista-tämä-komento))
                                             (-> maailma
-                                                (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taksuun.")
+                                                (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taskuun.")
                                                 (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
                                                                               {:nimi "Kulta-avain"}])
                                                 (assoc-in [:olohuone :avain-ja-kolikkko-on-löydetty] true)
@@ -56,7 +56,7 @@
 (deftest test-komentokartta
   (is (= "j"
          (keys (komentokartta [katso-telkkaria])))))
-
+2
 (defn valitse-komento [komentokartta]
   (loop []
     (println "Anna komennon kirjain:")
