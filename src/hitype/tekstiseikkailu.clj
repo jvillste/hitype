@@ -2,6 +2,10 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]))
 
+(defn ^:dynamic  onnistuiko? [todennäköisyys]
+  (<= (rand)
+      todennäköisyys))
+
 (defn poista-komento [maailma paikka komentotunnus]
   (update-in maailma
              [paikka :komennot]
@@ -11,31 +15,21 @@
                             komentotunnus))
                        komennot))))
 
-(defn etsi-avain-ja-kolikko-toteutus [maailma]
-  (let [poista-tämä-komento (fn [maailma]
-                              (poista-komento maailma :olohuone :etsi-avain-ja-kolikko))]
-    (if (get-in maailma [:olohuone :avain-ja-kolikkko-on-löydetty])
-      (-> maailma
-          (assoc :tapahtuman-kuvaus "Ei löytynyt mitään.")
-          (poista-tämä-komento))
-      (-> maailma
-          (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taksuun.")
-          (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
-                                        {:nimi "Kulta-avain"}])
-          (assoc-in [:olohuone :avain-ja-kolikkko-on-löydetty] true)
-          (poista-tämä-komento)))))
-
 (def etsi-avain-ja-kolikko {:tunnus :etsi-avain-ja-kolikko
                             :kuvaus "Etsi kultainen avain ja kolikko"
-                            :toteutus etsi-avain-ja-kolikko-toteutus})
-
-(defn ^:dynamic  onnistuiko? [todennäköisyys]
-  (<= (rand)
-      todennäköisyys))
-
-(comment
-  (repeatedly 10 #(onnistuiko? 0.3))
-  ) ;; TODO: remove-me
+                            :toteutus (fn [maailma]
+                                        (let [poista-tämä-komento (fn [maailma]
+                                                                    (poista-komento maailma :olohuone :etsi-avain-ja-kolikko))]
+                                          (if (get-in maailma [:olohuone :avain-ja-kolikkko-on-löydetty])
+                                            (-> maailma
+                                                (assoc :tapahtuman-kuvaus "Ei löytynyt mitään.")
+                                                (poista-tämä-komento))
+                                            (-> maailma
+                                                (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taksuun.")
+                                                (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
+                                                                              {:nimi "Kulta-avain"}])
+                                                (assoc-in [:olohuone :avain-ja-kolikkko-on-löydetty] true)
+                                                (poista-tämä-komento)))))})
 
 (def katso-telkkaria {:tunnus :katso-telkkaria
                       :kuvaus "Katso telkkaria."
