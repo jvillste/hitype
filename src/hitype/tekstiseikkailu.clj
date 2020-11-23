@@ -1,17 +1,6 @@
 (ns hitype.tekstiseikkailu
-  (:require [flow-gl.gui.visuals :as visuals]
-            [medley.core :as medley]
-            [fungl.application :as application]
-            [fungl.layout :as layout]
-            [fungl.layouts :as layouts]
-            [flow-gl.gui.animation :as animation]
-            [clojure.java.io :as io]
-            [flow-gl.graphics.buffered-image :as buffered-image]
-            [fungl.dependable-atom :as dependable-atom]
-            [flow-gl.gui.keyboard :as keyboard]
-            [fungl.view-compiler :as view-compiler]
-            [clojure.test :refer :all]
-            [clojure.string :as string]))
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]))
 
 (defn poista-komento [maailma paikka komentotunnus]
   (update-in maailma
