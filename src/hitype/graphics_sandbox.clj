@@ -10,7 +10,8 @@
             [fungl.dependable-atom :as dependable-atom]
             [fungl.util :as util]
             [hitype.util :as hitype-util]
-            [flow-gl.gui.keyboard :as keyboard]))
+            [flow-gl.gui.keyboard :as keyboard]
+            [fungl.cache :as cache]))
 
 (defn load-image* [file-name]
   (if-let [resource (io/resource file-name)]
@@ -100,7 +101,7 @@
   (show-errors
    (apply layouts/horizontally-2
           {:centered true
-           :margin 10}
+           :margin 30}
           (mapv (partial assert-and-show-errors assert-piirrettävä)
                 (flatten piirrettävät)))))
 
@@ -112,11 +113,16 @@
                     colors)
                [255])))
 
-(def teksti (fn [teksti & [koko väri]]
-              (visuals/text (str teksti) {:color (if väri
-                                                   (three-number-color väri)
-                                                   [0 0 0 255])
-                                          :font-size (or koko 50)})))
+(defn teksti [teksti & [koko väri]]
+  #_(visuals/text (str teksti) {:color (if väri
+                                         (three-number-color väri)
+                                         [0 0 0 255])
+                                :font-size (or koko 50)})
+  (visuals/text-area (str teksti)
+                     (if väri
+                       (three-number-color väri)
+                       [0 0 0 255])
+                     (visuals/liberation-sans-regular (or koko 50))))
 
 (defn- assoc-if-not-nil [map key value]
   (if value
@@ -164,78 +170,18 @@
       (handler {:näppäin (:key event)
                 :merkki (str (:character event))}))))
 
-(defmacro piirrä-2 [& {:keys [tila alkuarvo näppäimistökäsittelijä kuva]}]
+(defmacro piirrä-2 [& {:keys [tila alkuarvo näppäimistökäsittelijä kuva aloitus]}]
   `(do (reset! view-atom
                (let [~tila (dependable-atom/atom ~alkuarvo)]
                  (fn []
-                   (keyboard/set-focused-event-handler! (wrap-keyboard-event-hanlder ~näppäimistökäsittelijä))
-                   ~kuva)))
+                   (when ~aloitus (~aloitus))
+
+                   (fn []
+                     (keyboard/set-focused-event-handler! (wrap-keyboard-event-hanlder ~näppäimistökäsittelijä))
+                     ~kuva))))
        nil))
 
 (def yhdistä str)
-
-
-(defn kirjoitusharjoitus []
-  (piirrä-2 :tila
-            tila
-
-            :alkuarvo
-            {:merkki ""
-             :seuraava-merkki "a"
-             :aloitusaika 0
-             :ajat []}
-
-            :näppäimistökäsittelijä
-            (funktio [tapahtuma]
-                     (when (= (:seuraava-merkki (hae tila))
-                              (:merkki tapahtuma))
-                       (aseta! tila
-                               :seuraava-merkki
-                               (rand-nth (remove (funktio [merkki]
-                                                          (= merkki
-                                                             (:seuraava-merkki (hae tila))))
-                                                 ["a" "l" "h"])))
-                       (aseta! tila
-                               :merkki
-                               (:merkki tapahtuma))
-
-                       (vaihda! tila
-                                :ajat
-                                (funktio [kestot]
-                                         (vec (take-last 5
-                                                         (conj kestot
-                                                               (round2 2 (- (aika)
-                                                                            (:aloitusaika (hae tila)))))))))
-                       (aseta! tila :aloitusaika (aika))))
-
-            :kuva
-            (allekkain
-             (teksti (yhdistä "Paina " (:seuraava-merkki (hae tila))))
-             (teksti (yhdistä "Aika " (round2 2 (- (aika)
-                                                   (:aloitusaika (hae tila))))))
-             (teksti (yhdistä "Ajat: " (:ajat (hae tila))))))
-  )
-(comment
-  (kirjoitusharjoitus)
-  (rand-nth ["a" "b" "c"])
-  (piirrä-2 :tila merkki
-            :alkuarvo ""
-            :näppäimistökäsittelijä (funktio [tapahtuma]
-                                             (aseta! merkki
-                                                     (:merkki tapahtuma)))
-            :kuva (teksti (yhdistä "Painoit " (hae merkki))))
-
-  (piirrä-2 :tila merkki
-            :alkuarvo ""
-            :näppäimistökäsittelijä (funktio [tapahtuma]
-                                             (aseta! merkki
-                                                     (yhdistä (float (aika))
-                                                              " "
-                                                              (:merkki tapahtuma))))
-            :kuva (teksti (yhdistä "Painoit " (hae merkki))))
-
-  ) ;; TODO: remove-me
-
 
 
 (defn aseta!
@@ -412,13 +358,18 @@
                       (allekkain (pumppaa "kissa.jpg"))))
   )
 
+(comment
+    (prn 'base-view (:aloitus @view-atom)) ;; TODO: remove-me
+
+  ) ;; TODO: remove-me
+
 (defn base-view []
   (fn []
     (animation/swap-state! animation/set-wake-up 1000)
     ;;(prn 'base-view @animation/state-atom) ;; TODO: remove-me
     @animation/state-atom
     (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
-                         (layouts/center (layouts/vertically-2 {:margin 10} (@view-atom))))))
+                         (layouts/center (layouts/vertically-2 {:margin 10} [@view-atom])))))
 
 (defn start []
   (prn "----------------") ;; TODO: remove-me
@@ -426,8 +377,220 @@
   (application/start-window #'base-view))
 
 
+(def explosion (let [original-frames (buffered-image/gif-frames (io/resource "explosion.gif"))]
+                 (vec (concat (drop 7 original-frames)
+                              (take 7 original-frames)))))
+
+(defn image-animation [animation-key frames end-image]
+  (let [phase (animation/phase! animation-key
+                                1000)]
+    (if (= 1 phase)
+      end-image
+      (visuals/image (get frames
+                          (int (animation/linear-mapping (animation/ping-pong 0.3
+                                                                              phase)
+                                                         0
+                                                         (dec (count frames)))))))))
+
+(defn kirjoitusharjoitus []
+  (piirrä-2 :tila
+            tila
+
+            :aloitus
+            (funktio [] (animation/start! :merkin-räjäytys))
+
+            :alkuarvo
+            {:merkki ""
+             :seuraava-merkki "A"
+             :aloitusaika 0
+             :ajat []
+             :sydämmet 10}
+
+            :näppäimistökäsittelijä
+            (funktio [tapahtuma]
+                     (if (= (.toLowerCase (:seuraava-merkki (hae tila)))
+                            (.toLowerCase (:merkki tapahtuma)))
+                       (do
+                         (aseta! tila
+                                 :seuraava-merkki
+                                 (rand-nth (remove (funktio [merkki]
+                                                            (= merkki
+                                                               (:seuraava-merkki (hae tila))))
+                                                   ["A" "H" "L" "S"])))
+
+                         (aseta! tila
+                                 :merkki
+                                 (:merkki tapahtuma))
+
+                         (vaihda! tila
+                                  :ajat
+                                  (funktio [kestot]
+                                           (vec (take-last 5
+                                                           (conj kestot
+                                                                 (round2 2 (- (aika)
+                                                                              (:aloitusaika (hae tila)))))))))
+                         (animation/start! :merkin-räjäytys)
+
+                         (aseta! tila :aloitusaika (aika)))
+                       (if (< 1 (:sydämmet (hae tila)))
+                         (vaihda! tila :sydämmet dec)
+                         (aseta! tila :game-over true))))
+
+            :kuva
+            (if (:game-over (hae tila))
+              (teksti "GAME OVER" 100 [100 0 0 100])
+              (allekkain
+               (image-animation :merkin-räjäytys
+                                explosion
+                                (teksti (:seuraava-merkki (hae tila))
+                                        200))
+               (teksti (int (- (aika)
+                               (:aloitusaika (hae tila)))))
+               (vierekkäin (for [aika (:ajat (hae tila))]
+                             (teksti (int aika) 100
+                                     (cond (< aika 5)
+                                           [0 100 0 100]
+
+                                           (< aika 8)
+                                           [0 0 100 100]
+
+                                           :default
+                                           [100 0 0 100]))))
+               (vierekkäin (repeat (:sydämmet (hae tila))
+                                   (kuva "hero-tiles/heart.png" 100 100))
+                           (repeat (- 10 (:sydämmet (hae tila)))
+                                   (kuva "hero-tiles/gray-heart.png" 100 100))))))
+  )
+
+(def kysymykset [
+                 ;; {:kysymys "2 * 2", :vastaus 4}
+                 ;; {:kysymys "2 * 3", :vastaus 6}
+                 ;; {:kysymys "2 * 4", :vastaus 8}
+                 ;; {:kysymys "2 * 5", :vastaus 10}
+                 ;; {:kysymys "2 * 6", :vastaus 12}
+                 ;; {:kysymys "2 * 7", :vastaus 14}
+                 ;; {:kysymys "2 * 8", :vastaus 16}
+                 ;; {:kysymys "2 * 9", :vastaus 18}
+                 ;; {:kysymys "3 * 3", :vastaus 9}
+                 ;; {:kysymys "3 * 4", :vastaus 12}
+                 ;; {:kysymys "3 * 5", :vastaus 15}
+                 {:kysymys "3 * 6", :vastaus 18}
+                 {:kysymys "3 * 7", :vastaus 21}
+                 {:kysymys "3 * 8", :vastaus 24}
+                 {:kysymys "3 * 9", :vastaus 27}
+                 {:kysymys "4 * 4", :vastaus 16}
+                 {:kysymys "4 * 5", :vastaus 20}
+                 ;; {:kysymys "4 * 6", :vastaus 24}
+                 ;; {:kysymys "4 * 7", :vastaus 28}
+                 ;; {:kysymys "4 * 8", :vastaus 32}
+                 ;; {:kysymys "4 * 9", :vastaus 36}
+                 ;; {:kysymys "5 * 5", :vastaus 25}
+                 ;; {:kysymys "5 * 6", :vastaus 30}
+                 ;; {:kysymys "5 * 7", :vastaus 35}
+                 ;; {:kysymys "5 * 8", :vastaus 40}
+                 ;; {:kysymys "5 * 9", :vastaus 45}
+                 ;; {:kysymys "6 * 6", :vastaus 36}
+                 ;; {:kysymys "6 * 7", :vastaus 42}
+                 ;; {:kysymys "6 * 8", :vastaus 48}
+                 ;; {:kysymys "6 * 9", :vastaus 54}
+                 ;; {:kysymys "7 * 7", :vastaus 49}
+                 ;; {:kysymys "7 * 8", :vastaus 56}
+                 ;; {:kysymys "7 * 9", :vastaus 63}
+                 ;; {:kysymys "8 * 8", :vastaus 64}
+                 ;; {:kysymys "8 * 9", :vastaus 72}
+                 ;; {:kysymys "9 * 9", :vastaus 81}
+                 ])
+
+(comment
+  (vec (for [x (range 2 10)
+             y (range 2 10)
+             :when (<= x y)]
+         {:kysymys (str x " * " y)
+          :vastaus (* x y)}))
+  )
+
+(defn flash-cards []
+  (piirrä-2 :tila
+            tila
+
+            :aloitus
+            (funktio [])
+
+            :alkuarvo
+            (let [kysymykset (set (take 1 kysymykset))]
+              {:jäljellä-olevat-kysymykset kysymykset
+               :seuraava-kysymys (rand-nth (vec kysymykset))
+               :tila :kysymys})
+
+            :näppäimistökäsittelijä
+            (funktio [tapahtuma]
+                     (if (= :kysymys (:tila (hae tila)))
+                       (aseta! tila :tila :vastaus)
+                       (case (:merkki tapahtuma)
+                         "j" (vaihda! tila
+                                      (fn [tila]
+                                        (let [jäljellä-olevat-kysymykset (disj (:jäljellä-olevat-kysymykset tila)
+                                                                               (:seuraava-kysymys tila))]
+                                          (if (empty? jäljellä-olevat-kysymykset)
+                                            (assoc tila
+                                                   :tila :valmis
+                                                   :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset)
+                                            (assoc tila
+                                                   :tila :kysymys
+                                                   :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset
+                                                   :seuraava-kysymys (rand-nth (vec jäljellä-olevat-kysymykset)))))))
+                         "k" (vaihda! tila
+                                      (fn [tila]
+                                        (assoc tila
+                                               :tila :kysymys
+                                               :seuraava-kysymys (rand-nth (vec (:jäljellä-olevat-kysymykset tila))))))
+                         nil)))
+
+            :kuva
+            (let [tila (hae tila)]
+              (allekkain
+               (case (:tila tila)
+                 :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila)))
+                                     (teksti "Paina mitä tahansa näppäintä nähdäksesi vastauksen."
+                                             30))
+                 :vastaus (allekkain (teksti (:vastaus (:seuraava-kysymys tila)))
+                                     (teksti "Paina j jos osasit ja k jos et osannut."
+                                             30))
+                 :valmis (teksti "Opit kaikki!"))
+               (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
+                       30))))
+  )
 
 
+
+
+
+
+
+
+
+(comment
+  (kirjoitusharjoitus)
+  (flash-cards)
+
+  (piirrä-2 :tila merkki
+            :alkuarvo ""
+            :näppäimistökäsittelijä (funktio [tapahtuma]
+                                             (aseta! merkki
+                                                     (:merkki tapahtuma)))
+            :kuva (teksti (yhdistä "Painoit " (hae merkki))))
+
+  (piirrä-2 :tila merkki
+            :alkuarvo ""
+            :näppäimistökäsittelijä (funktio [tapahtuma]
+
+                                             (aseta! merkki
+                                                     (yhdistä (float (aika))
+                                                              " "
+                                                              (:merkki tapahtuma))))
+            :kuva (allekkain (teksti (yhdistä "Painoit " (hae merkki)))))
+
+  ) ;; TODO: remove-me
 
 
 
