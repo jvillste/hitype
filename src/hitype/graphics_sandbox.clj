@@ -11,7 +11,30 @@
             [fungl.util :as util]
             [hitype.util :as hitype-util]
             [flow-gl.gui.keyboard :as keyboard]
-            [fungl.cache :as cache]))
+            [fungl.cache :as cache]
+            [java-time :as java-time]
+            [time-literals.data-readers :as data-readers]
+            [time-literals.read-write :as read-write]
+            [clojure.test :refer :all]
+            [clojure.set :as set])
+  (:import java.time.LocalDate
+           java.time.ZonedDateTime))
+
+(read-write/print-time-literals-clj!)
+
+(comment
+  (java-time/zoned-date-time)
+  (java-time/as #time/zoned-date-time "2020-11-29T05:51:40.878+02:00[Europe/Helsinki]"
+                :hour)
+  (java-time/as (java-time/local-time #time/zoned-date-time "2020-11-29T05:51:40.878+02:00[Europe/Helsinki]")
+                :hour-of-day)
+
+  (java-time/as #time/zoned-date-time "2020-11-29T05:51:40.878+02:00[Europe/Helsinki]"
+                :hour-of-day)
+  (java-time/zoned-date-time)
+
+
+  ) ;; TODO: remove-me
 
 (defn load-image* [file-name]
   (if-let [resource (io/resource file-name)]
@@ -463,42 +486,54 @@
   )
 
 (def kysymykset [
-                 ;; {:kysymys "2 * 2", :vastaus 4}
-                 ;; {:kysymys "2 * 3", :vastaus 6}
-                 ;; {:kysymys "2 * 4", :vastaus 8}
-                 ;; {:kysymys "2 * 5", :vastaus 10}
-                 ;; {:kysymys "2 * 6", :vastaus 12}
-                 ;; {:kysymys "2 * 7", :vastaus 14}
-                 ;; {:kysymys "2 * 8", :vastaus 16}
-                 ;; {:kysymys "2 * 9", :vastaus 18}
-                 ;; {:kysymys "3 * 3", :vastaus 9}
-                 ;; {:kysymys "3 * 4", :vastaus 12}
-                 ;; {:kysymys "3 * 5", :vastaus 15}
-                 {:kysymys "3 * 6", :vastaus 18}
-                 {:kysymys "3 * 7", :vastaus 21}
-                 {:kysymys "3 * 8", :vastaus 24}
-                 {:kysymys "3 * 9", :vastaus 27}
-                 {:kysymys "4 * 4", :vastaus 16}
-                 {:kysymys "4 * 5", :vastaus 20}
-                 ;; {:kysymys "4 * 6", :vastaus 24}
-                 ;; {:kysymys "4 * 7", :vastaus 28}
-                 ;; {:kysymys "4 * 8", :vastaus 32}
-                 ;; {:kysymys "4 * 9", :vastaus 36}
-                 ;; {:kysymys "5 * 5", :vastaus 25}
-                 ;; {:kysymys "5 * 6", :vastaus 30}
-                 ;; {:kysymys "5 * 7", :vastaus 35}
-                 ;; {:kysymys "5 * 8", :vastaus 40}
-                 ;; {:kysymys "5 * 9", :vastaus 45}
-                 ;; {:kysymys "6 * 6", :vastaus 36}
-                 ;; {:kysymys "6 * 7", :vastaus 42}
-                 ;; {:kysymys "6 * 8", :vastaus 48}
-                 ;; {:kysymys "6 * 9", :vastaus 54}
-                 ;; {:kysymys "7 * 7", :vastaus 49}
-                 ;; {:kysymys "7 * 8", :vastaus 56}
-                 ;; {:kysymys "7 * 9", :vastaus 63}
-                 ;; {:kysymys "8 * 8", :vastaus 64}
-                 ;; {:kysymys "8 * 9", :vastaus 72}
-                 ;; {:kysymys "9 * 9", :vastaus 81}
+                 ;;{:kysymys "2 * 2", :vastaus "4"}
+                 ;; {:kysymys "2 * 3", :vastaus "6"}
+                 ;; {:kysymys "2 * 4", :vastaus "8"}
+                 ;; {:kysymys "2 * 5", :vastaus "10"}
+                 ;; {:kysymys "2 * 6", :vastaus "12"}
+                 ;; {:kysymys "2 * 7", :vastaus "14"}
+                 ;; {:kysymys "2 * 8", :vastaus "16"}
+                 ;; {:kysymys "2 * 9", :vastaus "18"}
+                 ;; {:kysymys "2 + 2", :vastaus "4"}
+                 ;; {:kysymys "2 - 1", :vastaus "1"}
+                 ;; {:kysymys "3 * 3", :vastaus "9"}
+                 {:kysymys "3 * 4", :vastaus "12"}
+                 ;; {:kysymys "3 * 5", :vastaus "15"}
+                 {:kysymys "Onko aurinko noussut?", :vastaus "ei"}
+                 {:kysymys "Onko äiti herännyt?", :vastaus "ei"}
+                 {:kysymys "1000 * 1000", :vastaus "1 000 000"}
+                 ;; {:kysymys "30 * 5", :vastaus "150"}
+                 ;; {:kysymys "3 * 5 * 10", :vastaus "150"}
+                 {:kysymys "yksi plus kaksi", :vastaus "kolme"}
+                 ;; {:kysymys "3 * 6", :vastaus "18"}
+                 {:kysymys "3 * 7", :vastaus "21"}
+                 ;; {:kysymys "3 * 8", :vastaus "24"}
+                 {:kysymys "3 * 9", :vastaus "27"}
+                 {:kysymys "3 + 7", :vastaus "10"}
+                 {:kysymys "9 + 1", :vastaus "10"}
+                 {:kysymys "9 + 2", :vastaus "11"}
+
+                 ;; {:kysymys "4 * 4", :vastaus "16"}
+                 ;; {:kysymys "4 * 5", :vastaus "20"}
+                 ;; {:kysymys "4 * 6", :vastaus "24"}
+                 ;; {:kysymys "4 * 7", :vastaus "28"}
+                 ;; {:kysymys "4 * 8", :vastaus "32"}
+                 ;; {:kysymys "4 * 9", :vastaus "36"}
+                 ;; {:kysymys "5 * 5", :vastaus "25"}
+                 ;; {:kysymys "5 * 6", :vastaus "30"}
+                 ;; {:kysymys "5 * 7", :vastaus "35"}
+                 ;; {:kysymys "5 * 8", :vastaus "40"}
+                 ;; {:kysymys "5 * 9", :vastaus "45"}
+                 ;; {:kysymys "6 * 6", :vastaus "36"}
+                 ;; {:kysymys "6 * 7", :vastaus "42"}
+                 ;; {:kysymys "6 * 8", :vastaus "48"}
+                 ;; {:kysymys "6 * 9", :vastaus "54"}
+                 ;; {:kysymys "7 * 7", :vastaus "49"}
+                 ;; {:kysymys "7 * 8", :vastaus "56"}
+                 ;; {:kysymys "7 * 9", :vastaus "63"}
+                 ;; {:kysymys "8 * 8", :vastaus "64"}
+                 ;; {:kysymys "8 * 9", :vastaus "72"}
+                 ;;{:kysymys "9 * 9", :vastaus "81"}
                  ])
 
 (comment
@@ -506,44 +541,244 @@
              y (range 2 10)
              :when (<= x y)]
          {:kysymys (str x " * " y)
-          :vastaus (* x y)}))
+          :vastaus (str (* x y))}))
+  (rand-nth #{1 2 3})
   )
+
+(defn loki-tuloksiksi [loki]
+  (->> loki
+       (partition-by :kysymys)
+       (mapcat (fn [log-lines]
+                 (->> log-lines
+                      (partition 3 1)
+                      (map (fn [log-lines]
+                             (let [[aloitus lopetus tulos] log-lines]
+                               (when (and (= :näytettiin-kysymys (:tapahtuma aloitus))
+                                          (= :näytettiin-vastaus (:tapahtuma lopetus))
+                                          (#{:osattiin :ei-osattu} (:tapahtuma tulos)))
+                                 {:aika (:aika aloitus)
+                                  :kysymys (:kysymys aloitus)
+                                  :miettimisaika (.toMillis (java.time.Duration/between (:aika aloitus)
+                                                                                        (:aika lopetus)))
+                                  :tulos (:tapahtuma tulos)}))))
+                      (remove nil?))))))
+
+(defn lisää-ajat-edelliseen-kertaan [tulokset]
+  (->> tulokset
+       (group-by :kysymys)
+       (vals)
+       (mapcat (fn [tulokset]
+                 (let [tulokset (sort-by :aika tulokset)]
+                   (->> tulokset
+                        (partition 2 1)
+                        (map (fn [[ensimmäinen toinen]]
+                               (assoc toinen
+                                      :millisekunteja-edelliseen-kertaan (.toMillis (java.time.Duration/between (:aika ensimmäinen)
+                                                                                                           (:aika toinen))))))
+                        (concat [(first tulokset)])))))))
+
+(defn miettimisaika-osaamiseksi [miettimisaika]
+  (float (if (< miettimisaika 5000)
+           1
+           (- 1
+              (min 1
+                   (/ (- miettimisaika 5000)
+                      10000))))))
+
+(deftest test-miettimisaika-osaamiseksi
+  (is (= 1.0
+         (miettimisaika-osaamiseksi 4000)))
+
+  (is (= 0.5
+         (miettimisaika-osaamiseksi 10000)))
+
+  (is (= 0.0
+         (miettimisaika-osaamiseksi 15000)))
+
+  (is (= 0.0
+         (miettimisaika-osaamiseksi 20000))))
+
+(defn millisekunteja-edelliseen-kertaan-kertoimeksi [millisekunteja-edelliseen-kertaan]
+  (if (<= millisekunteja-edelliseen-kertaan
+          (* 2 60 1000))
+    (* 0.5
+       (/ millisekunteja-edelliseen-kertaan
+          (* 2 60 1000)))
+    (min 1.0
+         (+ 0.5
+            (* 0.5
+               (/ millisekunteja-edelliseen-kertaan
+                  (* 12 60 60 1000)))))))
+
+(deftest test-millisekunteja-edelliseen-kertaan-kertoimeksi
+  (is (= 0.0
+         (millisekunteja-edelliseen-kertaan-kertoimeksi 0)))
+
+  (is (= 0.5
+         (millisekunteja-edelliseen-kertaan-kertoimeksi (* 2 60 1000))))
+
+  (is (= 0.5014004629629629
+         (millisekunteja-edelliseen-kertaan-kertoimeksi (+ 1000 (* 2 60 1000)))))
+
+  (is (= 1.0
+         (millisekunteja-edelliseen-kertaan-kertoimeksi (* 12 60 60 1000))))
+
+  (is (= 1.0
+         (millisekunteja-edelliseen-kertaan-kertoimeksi (+  1 (* 12 60 60 1000))))))
+
+(defn osaaminen [tulos]
+  (cond (= :ei-osattu (:tulos tulos))
+        0
+
+        (nil? (:millisekunteja-edelliseen-kertaan tulos))
+        (miettimisaika-osaamiseksi (:miettimisaika tulos))
+
+        :default
+        (* (miettimisaika-osaamiseksi (:miettimisaika tulos))
+           (millisekunteja-edelliseen-kertaan-kertoimeksi (:millisekunteja-edelliseen-kertaan tulos)))))
+
+(deftest test-osaaminen
+  (is (= 
+       (osaaminen {:kysymys {:kysymys "3 * 4", :vastaus "12"},
+                   :miettimisaika 42896,
+                   :tulos :osattiin}))))
+
+(defn lisää-osaamiset-tuloksiin [tulokset]
+  (map (fn [tulos]
+         (assoc tulos :osaaminen (osaaminen tulos)))
+       tulokset))
+
+(defonce log (atom []))
+
+(defn viimeisimmät-tulokset [tulokset]
+  (->> tulokset
+       (group-by :kysymys)
+       (vals)
+       (map (fn [tulokset]
+              (last (sort-by :aika tulokset))))))
+
+
+(defn viimeisimmät-tulokset-lokilta [loki]
+  (->> loki
+       loki-tuloksiksi
+       lisää-ajat-edelliseen-kertaan
+       lisää-osaamiset-tuloksiin
+       viimeisimmät-tulokset))
+
+(defn osaamiset [loki kysymykset]
+  (let [tulokset-lokilta (viimeisimmät-tulokset-lokilta loki)]
+    (concat tulokset-lokilta
+            (->> (set/difference (set kysymykset)
+                                 (set (map :kysymys tulokset-lokilta)))
+                 (map (fn [kysymys]
+                        {:kysymys kysymys
+                         :osaaminen 0}))))))
+
+(comment
+  (partition 2 1 [1 2])
+  (def log (atom []))
+
+  (viimeisimmät-tulokset-lokilta @log)
+
+  (->> @log
+       loki-tuloksiksi
+       lisää-ajat-edelliseen-kertaan
+       lisää-osaamiset-tuloksiin
+       #_viimeisimmät-tulokset)
+  (spit "temp/valon-kysymysloki" @log)
+  (reset! log (eval (read-string (slurp "temp/valon-kysymysloki"))))
+
+  (viimeisimmät-tulokset (lisää-osaamiset-tuloksiin (lisää-ajat-edelliseen-kertaan (loki-tuloksiksi @log))))
+
+  (osaamiset @log kysymykset)
+  (def test-log [{:aika
+                  #time/zoned-date-time "2020-11-29T06:13:36.214+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
+                  :tapahtuma :näytettiin-kysymys}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:39.707+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
+                  :tapahtuma :näytettiin-vastaus}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:41.596+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
+                  :tapahtuma :ei-osattu}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:41.597+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
+                  :tapahtuma :näytettiin-kysymys}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:44.240+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
+                  :tapahtuma :näytettiin-vastaus}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:45.613+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
+                  :tapahtuma :osattiin}
+                 {:aika
+                  #time/zoned-date-time "2020-11-29T06:13:45.614+02:00[Europe/Helsinki]",
+                  :kysymys {:kysymys "9 + 1", :vastaus "10"},
+                  :tapahtuma :näytettiin-kysymys}])
+
+
+
+
+
+
+  ) ;; TODO: remove-me
+
+
+(defn lokita! [tila tapahtuma]
+  (swap! log
+         conj
+         {:aika (ZonedDateTime/now)
+          :kysymys (:seuraava-kysymys (hae tila))
+          :tapahtuma tapahtuma}))
 
 (defn flash-cards []
   (piirrä-2 :tila
             tila
 
             :aloitus
-            (funktio [])
+            (funktio []
+                     (lokita! tila :näytettiin-kysymys))
 
             :alkuarvo
-            (let [kysymykset (set (take 1 kysymykset))]
+            (let [kysymykset (set (take 3 kysymykset))
+                  #_#{{:kysymys "3 * 8", :vastaus "24"}
+                      {:kysymys "3 * 9", :vastaus "27"}}]
               {:jäljellä-olevat-kysymykset kysymykset
                :seuraava-kysymys (rand-nth (vec kysymykset))
                :tila :kysymys})
 
             :näppäimistökäsittelijä
             (funktio [tapahtuma]
-                     (if (= :kysymys (:tila (hae tila)))
-                       (aseta! tila :tila :vastaus)
+                     (if (and (= :kysymys (:tila (hae tila)))
+                              (= "k" (:merkki tapahtuma)))
+                       (do (lokita! tila :näytettiin-vastaus)
+                           (aseta! tila :tila :vastaus))
                        (case (:merkki tapahtuma)
-                         "j" (vaihda! tila
-                                      (fn [tila]
-                                        (let [jäljellä-olevat-kysymykset (disj (:jäljellä-olevat-kysymykset tila)
-                                                                               (:seuraava-kysymys tila))]
-                                          (if (empty? jäljellä-olevat-kysymykset)
-                                            (assoc tila
-                                                   :tila :valmis
-                                                   :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset)
+                         "j" (do (lokita! tila :osattiin)
+                                 (vaihda! tila
+                                          (fn [tila]
+                                            (let [jäljellä-olevat-kysymykset (disj (:jäljellä-olevat-kysymykset tila)
+                                                                                   (:seuraava-kysymys tila))]
+                                              (if (empty? jäljellä-olevat-kysymykset)
+                                                (assoc tila
+                                                       :tila :valmis
+                                                       :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset)
+                                                (assoc tila
+                                                       :tila :kysymys
+                                                       :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset
+                                                       :seuraava-kysymys (rand-nth (vec jäljellä-olevat-kysymykset)))))))
+                                 (lokita! tila :näytettiin-kysymys))
+                         "k" (do (lokita! tila :ei-osattu)
+                                 (vaihda! tila
+                                          (fn [tila]
                                             (assoc tila
                                                    :tila :kysymys
-                                                   :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset
-                                                   :seuraava-kysymys (rand-nth (vec jäljellä-olevat-kysymykset)))))))
-                         "k" (vaihda! tila
-                                      (fn [tila]
-                                        (assoc tila
-                                               :tila :kysymys
-                                               :seuraava-kysymys (rand-nth (vec (:jäljellä-olevat-kysymykset tila))))))
+                                                   :seuraava-kysymys (rand-nth (vec (:jäljellä-olevat-kysymykset tila))))))
+                                 (lokita! tila :näytettiin-kysymys))
                          nil)))
 
             :kuva
@@ -551,15 +786,26 @@
               (allekkain
                (case (:tila tila)
                  :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila)))
-                                     (teksti "Paina mitä tahansa näppäintä nähdäksesi vastauksen."
+                                     (teksti "Paina \"k\" nähdäksesi vastauksen."
                                              30))
                  :vastaus (allekkain (teksti (:vastaus (:seuraava-kysymys tila)))
-                                     (teksti "Paina j jos osasit ja k jos et osannut."
+                                     (teksti "Paina \"j\" jos osasit ja \"k\" jos et osannut."
                                              30))
                  :valmis (teksti "Opit kaikki!"))
                (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
-                       30))))
-  )
+                       30)
+               (layouts/vertically-2 {}
+                                     (for [osaaminen (->> (osaamiset @log
+                                                                     (:jäljellä-olevat-kysymykset tila))
+                                                          (sort-by :osaaminen))]
+                                       (teksti (str (format "%.2f" (double (:osaaminen osaaminen))) "  =  " (:kysymys (:kysymys osaaminen)))
+                                               30)))))))
+
+(comment
+  (osaamiset @log
+             [])
+  (format "%.2f" (double 1))
+  ) ;; TODO: remove-me
 
 
 
