@@ -57,7 +57,7 @@
                                                 (poista-tämä-komento)))))})
 
 (def katso-telkkaria {:tunnus :katso-telkkaria
-                      :kuvaus "Katso telkkaria."
+                      :kuvaus "Katso telkkaria"
                       :toteutus (fn [maailma]
                                   (if (onnistuiko? 0.33)
                                     (-> maailma
@@ -69,9 +69,42 @@
                                         (assoc :tapahtuman-kuvaus "Telkkarista tulee ryhmä hauta.")
                                         (lisää-kokemusta 1))))})
 
+(def heitä-whattaswip {:tunnus :heitä-whattaswip
+                       :kuvaus "Heitä whattaswip"
+                       :toteutus (fn [maailma]
+                                   (if (onnistuiko? 0.2)
+                                     (-> maailma
+                                         (assoc :tapahtuman-kuvaus "Onnistuit heittämään whattaswipin!!")
+                                         (lisää-kokemusta 20))
+                                     (-> maailma
+                                         (assoc :tapahtuman-kuvaus "Pullo ei pysynyt pystyssä.")
+                                         (lisää-kokemusta 1))))})
+
+(def istuta-porkkanoita {:tunnus :istuta-porkkanoita
+                         :kuvaus "Istuta porkkanoita"
+                         :toteutus (fn [maailma]
+                                     (update-in maailma [:takapiha] assoc :porkkanat-on-istutettu-vuorolla (:pelivuoro maailma)))})
+
 (def paikat {:olohuone {:nimi "Olohuone"
+                        :menonimi "olohuoneeseen"
                         :kuvaus "Täällä on sohva ja telkkari. Lattialla on matto."
-                        :komennot [katso-telkkaria]}})
+                        :komennot [katso-telkkaria]
+                        :exits [:keittiö]}
+             :keittiö {:nimi "Keittiö"
+                       :menonimi "keittiöön"
+                       :kuvaus "Täällä on pöytä jolla on whattaswippipullo."
+                       :komennot [heitä-whattaswip]
+                       :exits [:olohuone]}
+             #_:takapiha #_{:nimi "Takapiha"
+                          :menonimi "takapihalle"
+                          :kuvaus-funktio (fn [maailma]
+                                            (str "Täällä on kasvimaa."
+                                                 (when-let [istutus-vuoro (get-in maailma [:takapiha :porkkanat-on-istutettu-vuorolla])]
+                                                   "Porkkanat on istutettu " (- (:pelivuoro maailma)
+                                                                                istutus-vuoro) " vuoroa sitten.")
+                                                 ))
+                          :komennot [heitä-whattaswip]
+                          :exits [:olohuone]}})
 
 (def komentonäppäimet ["j" "k" "l" "d" "s" "a" "ö"])
 
@@ -96,17 +129,32 @@
 (defn alusta-maailma []
   (merge paikat
          {:kokemuspisteet 0
-          :pelaajan-paikka :olohuone}))
+          :pelaajan-paikka :olohuone
+          :pelivuoro 1}))
 
 (defn pelaajan-paikka [maailma]
   (get maailma (:pelaajan-paikka maailma)))
 
 (defn mahdolliset-komennot [maailma]
-  (concat (:komennot (pelaajan-paikka maailma))
-          [#_{:tunnus :lopeta
-              :kuvaus "Lopeta"
-              :toteutus (fn [maailma]
-                          (assoc maailma :peli-on-lopetettu true))}]))
+  (let [paikka (pelaajan-paikka maailma)]
+    (if (:peli-on-lopetettu maailma)
+      [{:tunnus :aloita
+        :kuvaus "Aloita uusi peli"
+        :toteutus (fn [maailma]
+                    (alusta-maailma))}]
+      (concat (:komennot paikka)
+              (for [paikan-tunnus (:exits paikka)]
+                (let [menonimi (get-in maailma [paikan-tunnus :menonimi])]
+                  {:tunnus [:mene paikan-tunnus]
+                   :kuvaus (str "Mene " menonimi)
+                   :toteutus (fn [maailma]
+                               (-> maailma
+                                   (assoc :pelaajan-paikka paikan-tunnus)
+                                   (assoc :tapahtuman-kuvaus (str "Menit " menonimi))))}))
+              [{:tunnus :lopeta
+                :kuvaus "Lopeta"
+                :toteutus (fn [maailma]
+                            (assoc maailma :peli-on-lopetettu true))}]))))
 
 (defn maailma-komentojen-jälkeen [& komentotunnukset]
   (loop [maailma (alusta-maailma)
@@ -190,46 +238,64 @@
                        [0 0 0 255])
                      (visuals/liberation-sans-regular (or koko 50))))
 
-(defn nappi [text]
-  (layouts/box 10
-               (visuals/rectangle-2 :fill-color [210 210 255 255]
-                                    :corner-arc-radius 30)
-               (layouts/with-minimum-size 300 nil
-                 (teksti text 20))))
-
 (def tekstin-koko 25)
 
+(defn nappi [text]
+  (layouts/box 10
+               (visuals/rectangle-2 :fill-color [220 220 255 255]
+                                    :corner-arc-radius 30)
+               (layouts/with-minimum-size 300 nil
+                 (teksti text tekstin-koko))))
+
+
+
+(defn tapahtuman-kuvaus [kuvaus]
+  (teksti kuvaus tekstin-koko [0 0 100]))
+
+(defn komentonäkymä [maailma]
+  (for [[näppäin komento] (komentokartta (mahdolliset-komennot maailma))]
+    (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento)))))
+
 (defn world-view [maailma]
-  (let [paikka (pelaajan-paikka maailma)
-        komentokartta (komentokartta (mahdolliset-komennot maailma))]
-    (if (:peli-on-lopetettu maailma)
-      (teksti "Peli loppui")
-      (layouts/with-margins 20 20 20 20
-        (layouts/vertically-2 {:margin 10 :centered true}
-                              (teksti (:nimi paikka) (* 2 tekstin-koko))
-                              (layouts/vertically-2 {:margin 10}
-                                                    (teksti (:tapahtuman-kuvaus maailma) tekstin-koko [0 0 100])
-                                                    (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
-                                                              (teksti (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")
-                                                                      tekstin-koko [0 80 0]))
-                                                    (teksti (:kuvaus paikka) tekstin-koko))
-                              (if (not (empty? (:tavarat maailma)))
-                                (layouts/vertically-2 {}
-                                                      (teksti "Sinulla on:" (* 1.5 tekstin-koko))
-                                                      (for [tavara (:tavarat maailma)]
-                                                        (layouts/with-margins 0 0 0 20
-                                                          (teksti (:nimi tavara) tekstin-koko))))
-                                nil)
-                              (for [[näppäin komento] komentokartta]
-                                (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento))))
-                              (teksti (str "Kokemuspisteet: "(:kokemuspisteet maailma)) tekstin-koko))))))
+  (let [paikka (pelaajan-paikka maailma)]
+    (layouts/with-margins 20 20 20 20
+      (apply layouts/vertically-2 {:margin 10 :centered true}
+             (if (:peli-on-lopetettu maailma)
+               [(layouts/vertically-2 {:margin 10}
+                                      (tapahtuman-kuvaus (str "Peli loppui. Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) ":ssa pelivuorossa!"))
+                                      (tapahtuman-kuvaus (str "Se on " (int (/ (:kokemuspisteet maailma)
+                                                                               (dec (:pelivuoro maailma)))) " pistettä per vuoro.")))
+                (komentonäkymä maailma)]
+               [(teksti (:nimi paikka) (* 2 tekstin-koko))
+                (layouts/vertically-2 {:margin 10}
+                                      (tapahtuman-kuvaus (:tapahtuman-kuvaus maailma))
+                                      (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
+                                        (tapahtuman-kuvaus (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")))
+                                      (teksti (:kuvaus paikka) tekstin-koko))
+                (if (not (empty? (:tavarat maailma)))
+                  (layouts/vertically-2 {}
+                                        (teksti "Sinulla on:" (* 1.5 tekstin-koko))
+                                        (for [tavara (:tavarat maailma)]
+                                          (layouts/with-margins 0 0 0 20
+                                            (teksti (:nimi tavara) tekstin-koko))))
+                  nil)
+                (komentonäkymä maailma)
+                (teksti (str "Kokemuspisteet: "(:kokemuspisteet maailma)) tekstin-koko)
+                (teksti (str "Pelivuoro: "(:pelivuoro maailma)) tekstin-koko)])))))
 
 (defn näppäimistökäsittelijä [state-atom event]
   (when (= :key-released (:type event))
     (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
                             (str (:character event)))]
-      (swap! state-atom #(assoc % :kokemuspisteiden-lisäys nil))
-      (swap! state-atom (:toteutus komento)))))
+      (swap! state-atom (fn [maailma]
+                          (-> maailma
+                              (assoc :kokemuspisteiden-lisäys nil)
+                              (update :pelivuoro inc))))
+      (swap! state-atom (:toteutus komento))
+
+      (if (>= (:kokemuspisteet @state-atom)
+              100)
+        (swap! state-atom #(assoc % :peli-on-lopetettu true))))))
 
 (defn root-view []
   (let [state-atom (atom (alusta-maailma))]
