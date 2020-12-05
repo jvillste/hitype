@@ -1,6 +1,25 @@
 (ns hitype.tekstiseikkailu
   (:require [clojure.string :as string]
-            [clojure.test :refer :all]))
+            [clojure.test :refer :all]
+            [flow-gl.gui.animation :as animation]
+            [flow-gl.gui.visuals :as visuals]
+            [fungl.application :as application]
+            [fungl.layouts :as layouts]
+            [clojure.java.io :as io]
+            [flow-gl.graphics.buffered-image :as buffered-image]
+            [flow-gl.graphics.buffered-image :as buffered-image]
+            [fungl.component.text-area :as text-area]
+            [fungl.dependable-atom :as dependable-atom]
+            [fungl.util :as util]
+            [hitype.util :as hitype-util]
+            [flow-gl.gui.keyboard :as keyboard]
+            [fungl.cache :as cache]
+            [java-time :as java-time]
+            [time-literals.data-readers :as data-readers]
+            [time-literals.read-write :as read-write]
+            [clojure.test :refer :all]
+            [clojure.set :as set]))
+
 
 (defn ^:dynamic  onnistuiko? [todennäköisyys]
   (<= (rand)
@@ -56,7 +75,7 @@
 (deftest test-komentokartta
   (is (= "j"
          (keys (komentokartta [katso-telkkaria])))))
-2
+
 (defn valitse-komento [komentokartta]
   (loop []
     (println "Anna komennon kirjain:")
@@ -145,5 +164,70 @@
           (println "Peli loppui.")
           (recur maailma))))))
 
+(defn three-number-color [colors]
+  (vec (concat (map #(long (* % (/ 255 100)))
+                    colors)
+               [255])))
+
+(defn teksti [teksti & [koko väri]]
+  (visuals/text-area (str teksti)
+                     (if väri
+                       (three-number-color väri)
+                       [0 0 0 255])
+                     (visuals/liberation-sans-regular (or koko 50))))
+
+(defn nappi [text]
+  (layouts/box 10
+               (visuals/rectangle-2 :fill-color [210 210 255 255]
+                                    :corner-arc-radius 30)
+               (layouts/with-minimum-size 300 nil
+                 (teksti text 20))))
+
+(def body-text-size 25)
+
+(defn world-view [maailma]
+  (let [paikka (pelaajan-paikka maailma)
+        komentokartta (komentokartta (mahdolliset-komennot maailma))]
+    (if (:peli-on-lopetettu maailma)
+      (teksti "Peli loppui")
+      (layouts/with-margins 20 20 20 20
+        (layouts/vertically-2 {:margin 10 :centered true}
+                              (teksti (:nimi paikka) (* 2 body-text-size))
+                              (layouts/vertically-2 {:margin 10}
+                                                    (teksti (:tapahtuman-kuvaus maailma) body-text-size [0 0 100])
+                                                    (teksti (:kuvaus paikka) body-text-size))
+                              (if (not (empty? (:tavarat maailma)))
+                                (layouts/vertically-2 {}
+                                                      (teksti "Sinulla on:" (* 1.5 body-text-size))
+                                                      (for [tavara (:tavarat maailma)]
+                                                        (layouts/with-margins 0 0 0 20
+                                                          (teksti (:nimi tavara) body-text-size))))
+                                nil)
+                              (for [[näppäin komento] komentokartta]
+                                (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento)))))))))
+
+(defn näppäimistökäsittelijä [state-atom event]
+  (when (= :key-released (:type event))
+    (prn (komentokartta (mahdolliset-komennot @state-atom))) ;; TODO: remove-me
+
+    (prn event) ;; TODO: remove-me
+
+    (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
+                            (str (:character event)))]
+      (prn 'komento komento) ;; TODO: remove-me
+
+      (swap! state-atom (:toteutus komento)))))
+
+(defn root-view []
+  (let [state-atom (atom (alusta-maailma))]
+    (fn []
+      (animation/swap-state! animation/set-wake-up 1000)
+      @animation/state-atom
+      (keyboard/set-focused-event-handler! (partial näppäimistökäsittelijä
+                                                    state-atom))
+      (world-view @state-atom))))
+
 (defn start []
-  (aloita))
+  #_(aloita)
+
+  (application/start-window #'root-view))
