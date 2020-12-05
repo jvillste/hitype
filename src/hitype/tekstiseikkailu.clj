@@ -18,7 +18,8 @@
             [time-literals.data-readers :as data-readers]
             [time-literals.read-write :as read-write]
             [clojure.test :refer :all]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [medley.core :as medley]))
 
 
 (defn ^:dynamic  onnistuiko? [todennäköisyys]
@@ -27,7 +28,7 @@
 
 (defn poista-komento [maailma paikka komentotunnus]
   (update-in maailma
-             [paikka :komennot]
+             [:paikat paikka :komennot]
              (fn [komennot]
                (remove (fn [komento]
                          (= (:tunnus komento)
@@ -44,7 +45,7 @@
                             :toteutus (fn [maailma]
                                         (let [poista-tämä-komento (fn [maailma]
                                                                     (poista-komento maailma :olohuone :etsi-avain-ja-kolikko))]
-                                          (if (get-in maailma [:olohuone :avain-ja-kolikkko-on-löydetty])
+                                          (if (get-in maailma [:paikat :olohuone :avain-ja-kolikkko-on-löydetty])
                                             (-> maailma
                                                 (assoc :tapahtuman-kuvaus "Ei löytynyt mitään.")
                                                 (poista-tämä-komento))
@@ -52,7 +53,7 @@
                                                 (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taskuun.")
                                                 (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
                                                                               {:nimi "Kulta-avain"}])
-                                                (assoc-in [:olohuone :avain-ja-kolikkko-on-löydetty] true)
+                                                (assoc-in [:paikat :olohuone :avain-ja-kolikkko-on-löydetty] true)
                                                 (lisää-kokemusta 10)
                                                 (poista-tämä-komento)))))})
 
@@ -63,7 +64,7 @@
                                     (-> maailma
                                         (assoc :tapahtuman-kuvaus "Telkkarissa ääni sanoo: \"Etsi olohuoneesta kultainen avain ja kultakolikko.\"")
                                         (poista-komento :olohuone :etsi-avain-ja-kolikko)
-                                        (update-in [:olohuone :komennot] conj etsi-avain-ja-kolikko)
+                                        (update-in [:paikat :olohuone :komennot] conj etsi-avain-ja-kolikko)
                                         (lisää-kokemusta 5))
                                     (-> maailma
                                         (assoc :tapahtuman-kuvaus "Telkkarista tulee ryhmä hauta.")
@@ -83,28 +84,71 @@
 (def istuta-porkkanoita {:tunnus :istuta-porkkanoita
                          :kuvaus "Istuta porkkanoita"
                          :toteutus (fn [maailma]
-                                     (update-in maailma [:takapiha] assoc :porkkanat-on-istutettu-vuorolla (:pelivuoro maailma)))})
+                                     (-> maailma
+                                         (assoc-in [:paikat :takapiha :porkkanoidenistutusvuoro]
+                                                   (:pelivuoro maailma))
+                                         (assoc :tapahtuman-kuvaus "Istutit porkkanat")
+                                         (poista-komento :takapiha :istuta-porkkanoita)))})
+
+(def syö-porkkanat {:tunnus :syö-porkkanat
+                    :kuvaus "Syö porkkanat"
+                    :toteutus (fn [maailma]
+                                (-> maailma
+                                    (assoc-in [:paikat :takapiha :porkkanoidenistutusvuoro]
+                                              nil)
+                                    (assoc :tapahtuman-kuvaus "Söit porkkanat")
+                                    (poista-komento :takapiha :syö-porkkanat)
+                                    (update-in [:paikat :takapiha :komennot] conj istuta-porkkanoita)
+                                    (lisää-kokemusta 20)))})
+
+(def porkkanoiden-kypsymisaika 5)
+(defn porkkanoiden-ikä [maailma]
+  (when-let [istutus-vuoro (get-in maailma [:paikat :takapiha :porkkanoidenistutusvuoro])]
+    (- (:pelivuoro maailma)
+       istutus-vuoro)))
+
+(defn mene [paikan-tunnus maailma]
+  (-> maailma
+      (assoc :pelaajan-paikka paikan-tunnus)
+      (assoc :tapahtuman-kuvaus (str "Menit " (get-in maailma [:paikat paikan-tunnus :menonimi])))))
+
+(declare paikat)
+
+(defn menokomento [paikan-tunnus]
+  {:tunnus [:mene paikan-tunnus]
+   :kuvaus (str "Mene " (get-in paikat [paikan-tunnus :menonimi]))
+   :toteutus (partial mene paikan-tunnus)})
 
 (def paikat {:olohuone {:nimi "Olohuone"
                         :menonimi "olohuoneeseen"
                         :kuvaus "Täällä on sohva ja telkkari. Lattialla on matto."
-                        :komennot [katso-telkkaria]
-                        :exits [:keittiö]}
+                        :komennot [katso-telkkaria
+                                   (menokomento :keittiö)]
+                        ;;:exits [:keittiö]
+                        }
              :keittiö {:nimi "Keittiö"
                        :menonimi "keittiöön"
                        :kuvaus "Täällä on pöytä jolla on whattaswippipullo."
-                       :komennot [heitä-whattaswip]
-                       :exits [:olohuone]}
-             #_:takapiha #_{:nimi "Takapiha"
-                          :menonimi "takapihalle"
-                          :kuvaus-funktio (fn [maailma]
-                                            (str "Täällä on kasvimaa."
-                                                 (when-let [istutus-vuoro (get-in maailma [:takapiha :porkkanat-on-istutettu-vuorolla])]
-                                                   "Porkkanat on istutettu " (- (:pelivuoro maailma)
-                                                                                istutus-vuoro) " vuoroa sitten.")
-                                                 ))
-                          :komennot [heitä-whattaswip]
-                          :exits [:olohuone]}})
+                       :komennot [heitä-whattaswip
+                                  (menokomento :olohuone)
+                                  (menokomento :takapiha)]}
+             :takapiha {:nimi "Takapiha"
+                        :menonimi "takapihalle"
+                        :kuvausfunktio (fn [maailma]
+                                         (str "Täällä on kasvimaa."
+                                              (when-let [ikä (porkkanoiden-ikä maailma)]
+                                                (str " Porkkanat on istutettu " ikä " vuoroa sitten."
+                                                     (if (>= ikä porkkanoiden-kypsymisaika)
+                                                       " Ne voi nyt syödä!"
+                                                       (str " Porkkanat voi syödä " (- porkkanoiden-kypsymisaika ikä) " vuoron päästä."))))))
+                        :päivitysfunktio (fn [maailma]
+                                           (if-let [ikä (porkkanoiden-ikä maailma)]
+                                             (if (= ikä porkkanoiden-kypsymisaika)
+                                               (update-in maailma [:paikat :takapiha :komennot] conj syö-porkkanat)
+                                               maailma)
+                                             maailma))
+                        :komennot [istuta-porkkanoita
+                                   (menokomento :keittiö)]}})
 
 (def komentonäppäimet ["j" "k" "l" "d" "s" "a" "ö"])
 
@@ -127,13 +171,17 @@
         (recur)))))
 
 (defn alusta-maailma []
-  (merge paikat
-         {:kokemuspisteet 0
+  (merge {:paikat paikat
+          :kokemuspisteet 0
           :pelaajan-paikka :olohuone
           :pelivuoro 1}))
 
 (defn pelaajan-paikka [maailma]
-  (get maailma (:pelaajan-paikka maailma)))
+  (get-in maailma [:paikat (:pelaajan-paikka maailma)]))
+
+
+#_(defn exits [maailma]
+  (:exits (pelaajan-paikka maailma)))
 
 (defn mahdolliset-komennot [maailma]
   (let [paikka (pelaajan-paikka maailma)]
@@ -143,30 +191,83 @@
         :toteutus (fn [maailma]
                     (alusta-maailma))}]
       (concat (:komennot paikka)
-              (for [paikan-tunnus (:exits paikka)]
+              #_(for [paikan-tunnus (:exits paikka)]
                 (let [menonimi (get-in maailma [paikan-tunnus :menonimi])]
                   {:tunnus [:mene paikan-tunnus]
                    :kuvaus (str "Mene " menonimi)
-                   :toteutus (fn [maailma]
-                               (-> maailma
-                                   (assoc :pelaajan-paikka paikan-tunnus)
-                                   (assoc :tapahtuman-kuvaus (str "Menit " menonimi))))}))
-              [{:tunnus :lopeta
+                   :toteutus (partial mene paikan-tunnus)}))
+              [{:tunnus :odota
+                :kuvaus "Odota"
+                :toteutus (fn [maailma]
+                            (assoc maailma :tapahtuman-kuvaus "Odotit yhden vuoron."))}
+               {:tunnus :lopeta
                 :kuvaus "Lopeta"
                 :toteutus (fn [maailma]
                             (assoc maailma :peli-on-lopetettu true))}]))))
+
+(defn päivitä-paikat [maailma]
+  (reduce (fn [maailma paikan-tunnus]
+            (if-let [päivitysfunktio (get-in maailma [:paikat paikan-tunnus :päivitysfunktio])]
+              (päivitysfunktio maailma)
+              maailma))
+          maailma
+          (keys (:paikat maailma))))
+
+(defn valmistaudu-komentoon [maailma]
+  (assoc maailma :kokemuspisteiden-lisäys nil))
+
+(defn lopeta-jos-kokemusta-on-riittävästi [maailma]
+  (if (>= (:kokemuspisteet maailma)
+          100)
+    (assoc maailma :peli-on-lopetettu true)
+    maailma))
+
+(defn edistä-aikaa [maailma]
+  (-> maailma
+      (update :pelivuoro inc)
+      (päivitä-paikat)
+      (lopeta-jos-kokemusta-on-riittävästi)))
+
+(defn aja-komento [komento maailma]
+  (-> maailma
+      (valmistaudu-komentoon)
+      ((:toteutus komento))
+      edistä-aikaa))
 
 (defn maailma-komentojen-jälkeen [& komentotunnukset]
   (loop [maailma (alusta-maailma)
          komentotunnukset komentotunnukset]
     (if-let [komentotunnus (first komentotunnukset)]
-      (recur ((:toteutus (first (filter (fn [komento]
-                                          (= (:tunnus komento)
-                                             komentotunnus))
-                                        (mahdolliset-komennot maailma))))
-              maailma)
+      (recur (if-let [komento (first (filter (fn [komento]
+                                               (= (:tunnus komento)
+                                                  komentotunnus))
+                                             (mahdolliset-komennot maailma)))]
+               (aja-komento komento maailma)
+               (throw (Exception. (str "Et voi antaa komentoa " komentotunnus))))
              (rest komentotunnukset))
+      #_(if (vector? komentotunnus)
+          (let [[komentotunnus & argumentit] komentotunnus]
+            (case komentotunnus
+              :mene (if (contains? (set (exits maailma))
+                                   (first argumentit))
+                      (recur (mene (first argumentit)
+                                   maailma)
+                             (rest komentotunnukset))
+                      (throw (Exception. (str "Et voi mennä paikkaan " (first argumentit) " paikasta " (:pelaajan-paikka maailma)))))))
+          (recur (if-let [komento (first (filter (fn [komento]
+                                                   (= (:tunnus komento)
+                                                      komentotunnus))
+                                                 (mahdolliset-komennot maailma)))]
+                   ((:toteutus komento) maailma)
+                   (throw (Exception. (str "Et voi antaa komentoa " komentotunnus))))
+                 (rest komentotunnukset)))
       maailma)))
+
+(defn paikan-kuvaus [maailma]
+  (let [paikka (pelaajan-paikka maailma)]
+    (if-let [kuvausfunktio (:kuvausfunktio paikka)]
+      (kuvausfunktio maailma)
+      (:kuvaus paikka))))
 
 (deftest testit
   (is (= "Ei löytynyt mitään."
@@ -179,7 +280,18 @@
   (is (= "Telkkarista tulee ryhmä hauta."
          (binding [onnistuiko? (constantly false)]
            (:tapahtuman-kuvaus (maailma-komentojen-jälkeen :katso-telkkaria
-                                                           :katso-telkkaria))))))
+                                                           :katso-telkkaria)))))
+
+  (is (= "Telkkarista tulee ryhmä hauta."
+         (binding [onnistuiko? (constantly false)]
+           (:tapahtuman-kuvaus (paikan-kuvaus (maailma-komentojen-jälkeen [:mene :keittiö]
+                                                                          [:mene :takapiha]
+                                                                          :istuta-porkkanoita
+                                                                          :odota
+                                                                          :odota
+                                                                          :odota
+                                                                          :odota
+                                                                          :syö-porkkanat)))))))
 
 (defn tilannekuvaus [maailma]
   (let [paikka (pelaajan-paikka maailma)
@@ -262,7 +374,7 @@
       (apply layouts/vertically-2 {:margin 10 :centered true}
              (if (:peli-on-lopetettu maailma)
                [(layouts/vertically-2 {:margin 10}
-                                      (tapahtuman-kuvaus (str "Peli loppui. Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) ":ssa pelivuorossa!"))
+                                      (tapahtuman-kuvaus (str "Peli loppui. Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) " pelivuorossa!"))
                                       (tapahtuman-kuvaus (str "Se on " (int (/ (:kokemuspisteet maailma)
                                                                                (dec (:pelivuoro maailma)))) " pistettä per vuoro.")))
                 (komentonäkymä maailma)]
@@ -271,7 +383,8 @@
                                       (tapahtuman-kuvaus (:tapahtuman-kuvaus maailma))
                                       (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
                                         (tapahtuman-kuvaus (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")))
-                                      (teksti (:kuvaus paikka) tekstin-koko))
+                                      (teksti (paikan-kuvaus maailma)
+                                              tekstin-koko))
                 (if (not (empty? (:tavarat maailma)))
                   (layouts/vertically-2 {}
                                         (teksti "Sinulla on:" (* 1.5 tekstin-koko))
@@ -283,19 +396,14 @@
                 (teksti (str "Kokemuspisteet: "(:kokemuspisteet maailma)) tekstin-koko)
                 (teksti (str "Pelivuoro: "(:pelivuoro maailma)) tekstin-koko)])))))
 
+
+
+
 (defn näppäimistökäsittelijä [state-atom event]
   (when (= :key-released (:type event))
     (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
                             (str (:character event)))]
-      (swap! state-atom (fn [maailma]
-                          (-> maailma
-                              (assoc :kokemuspisteiden-lisäys nil)
-                              (update :pelivuoro inc))))
-      (swap! state-atom (:toteutus komento))
-
-      (if (>= (:kokemuspisteet @state-atom)
-              100)
-        (swap! state-atom #(assoc % :peli-on-lopetettu true))))))
+      (swap! state-atom (partial aja-komento komento)))))
 
 (defn root-view []
   (let [state-atom (atom (alusta-maailma))]
