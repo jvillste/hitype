@@ -34,6 +34,11 @@
                             komentotunnus))
                        komennot))))
 
+(defn lisää-kokemusta [maailma määrä]
+  (-> maailma
+      (assoc :kokemuspisteiden-lisäys määrä)
+      (update :kokemuspisteet (partial + määrä))))
+
 (def etsi-avain-ja-kolikko {:tunnus :etsi-avain-ja-kolikko
                             :kuvaus "Etsi kultainen avain ja kolikko"
                             :toteutus (fn [maailma]
@@ -48,6 +53,7 @@
                                                 (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
                                                                               {:nimi "Kulta-avain"}])
                                                 (assoc-in [:olohuone :avain-ja-kolikkko-on-löydetty] true)
+                                                (lisää-kokemusta 10)
                                                 (poista-tämä-komento)))))})
 
 (def katso-telkkaria {:tunnus :katso-telkkaria
@@ -57,8 +63,11 @@
                                     (-> maailma
                                         (assoc :tapahtuman-kuvaus "Telkkarissa ääni sanoo: \"Etsi olohuoneesta kultainen avain ja kultakolikko.\"")
                                         (poista-komento :olohuone :etsi-avain-ja-kolikko)
-                                        (update-in [:olohuone :komennot] conj etsi-avain-ja-kolikko))
-                                    (assoc maailma :tapahtuman-kuvaus "Telkkarista tulee ryhmä hauta.")))})
+                                        (update-in [:olohuone :komennot] conj etsi-avain-ja-kolikko)
+                                        (lisää-kokemusta 5))
+                                    (-> maailma
+                                        (assoc :tapahtuman-kuvaus "Telkkarista tulee ryhmä hauta.")
+                                        (lisää-kokemusta 1))))})
 
 (def paikat {:olohuone {:nimi "Olohuone"
                         :kuvaus "Täällä on sohva ja telkkari. Lattialla on matto."
@@ -86,7 +95,7 @@
 
 (defn alusta-maailma []
   (merge paikat
-         {:taskut []
+         {:kokemuspisteet 0
           :pelaajan-paikka :olohuone}))
 
 (defn pelaajan-paikka [maailma]
@@ -94,10 +103,10 @@
 
 (defn mahdolliset-komennot [maailma]
   (concat (:komennot (pelaajan-paikka maailma))
-          [{:tunnus :lopeta
-            :kuvaus "Lopeta"
-            :toteutus (fn [maailma]
-                        (assoc maailma :peli-on-lopetettu true))}]))
+          [#_{:tunnus :lopeta
+              :kuvaus "Lopeta"
+              :toteutus (fn [maailma]
+                          (assoc maailma :peli-on-lopetettu true))}]))
 
 (defn maailma-komentojen-jälkeen [& komentotunnukset]
   (loop [maailma (alusta-maailma)
@@ -164,6 +173,11 @@
           (println "Peli loppui.")
           (recur maailma))))))
 
+
+
+;; GUI
+
+
 (defn three-number-color [colors]
   (vec (concat (map #(long (* % (/ 255 100)))
                     colors)
@@ -183,7 +197,7 @@
                (layouts/with-minimum-size 300 nil
                  (teksti text 20))))
 
-(def body-text-size 25)
+(def tekstin-koko 25)
 
 (defn world-view [maailma]
   (let [paikka (pelaajan-paikka maailma)
@@ -192,30 +206,29 @@
       (teksti "Peli loppui")
       (layouts/with-margins 20 20 20 20
         (layouts/vertically-2 {:margin 10 :centered true}
-                              (teksti (:nimi paikka) (* 2 body-text-size))
+                              (teksti (:nimi paikka) (* 2 tekstin-koko))
                               (layouts/vertically-2 {:margin 10}
-                                                    (teksti (:tapahtuman-kuvaus maailma) body-text-size [0 0 100])
-                                                    (teksti (:kuvaus paikka) body-text-size))
+                                                    (teksti (:tapahtuman-kuvaus maailma) tekstin-koko [0 0 100])
+                                                    (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
+                                                              (teksti (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")
+                                                                      tekstin-koko [0 80 0]))
+                                                    (teksti (:kuvaus paikka) tekstin-koko))
                               (if (not (empty? (:tavarat maailma)))
                                 (layouts/vertically-2 {}
-                                                      (teksti "Sinulla on:" (* 1.5 body-text-size))
+                                                      (teksti "Sinulla on:" (* 1.5 tekstin-koko))
                                                       (for [tavara (:tavarat maailma)]
                                                         (layouts/with-margins 0 0 0 20
-                                                          (teksti (:nimi tavara) body-text-size))))
+                                                          (teksti (:nimi tavara) tekstin-koko))))
                                 nil)
                               (for [[näppäin komento] komentokartta]
-                                (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento)))))))))
+                                (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento))))
+                              (teksti (str "Kokemuspisteet: "(:kokemuspisteet maailma)) tekstin-koko))))))
 
 (defn näppäimistökäsittelijä [state-atom event]
   (when (= :key-released (:type event))
-    (prn (komentokartta (mahdolliset-komennot @state-atom))) ;; TODO: remove-me
-
-    (prn event) ;; TODO: remove-me
-
     (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
                             (str (:character event)))]
-      (prn 'komento komento) ;; TODO: remove-me
-
+      (swap! state-atom #(assoc % :kokemuspisteiden-lisäys nil))
       (swap! state-atom (:toteutus komento)))))
 
 (defn root-view []
@@ -230,4 +243,4 @@
 (defn start []
   #_(aloita)
 
-  (application/start-window #'root-view))
+  (application/start-window #'root-view :window (application/create-window 400 800)))
