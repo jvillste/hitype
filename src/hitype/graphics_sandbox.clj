@@ -486,54 +486,53 @@
   )
 
 (def kysymykset [
-                 ;;{:kysymys "2 * 2", :vastaus "4"}
-                 ;; {:kysymys "2 * 3", :vastaus "6"}
-                 ;; {:kysymys "2 * 4", :vastaus "8"}
-                 ;; {:kysymys "2 * 5", :vastaus "10"}
-                 ;; {:kysymys "2 * 6", :vastaus "12"}
-                 ;; {:kysymys "2 * 7", :vastaus "14"}
-                 ;; {:kysymys "2 * 8", :vastaus "16"}
-                 ;; {:kysymys "2 * 9", :vastaus "18"}
-                 ;; {:kysymys "2 + 2", :vastaus "4"}
-                 ;; {:kysymys "2 - 1", :vastaus "1"}
-                 ;; {:kysymys "3 * 3", :vastaus "9"}
-                 {:kysymys "3 * 4", :vastaus "12"}
-                 ;; {:kysymys "3 * 5", :vastaus "15"}
-                 {:kysymys "Onko aurinko noussut?", :vastaus "ei"}
-                 {:kysymys "Onko äiti herännyt?", :vastaus "ei"}
-                 {:kysymys "1000 * 1000", :vastaus "1 000 000"}
-                 ;; {:kysymys "30 * 5", :vastaus "150"}
-                 ;; {:kysymys "3 * 5 * 10", :vastaus "150"}
-                 {:kysymys "yksi plus kaksi", :vastaus "kolme"}
-                 ;; {:kysymys "3 * 6", :vastaus "18"}
-                 {:kysymys "3 * 7", :vastaus "21"}
-                 ;; {:kysymys "3 * 8", :vastaus "24"}
-                 {:kysymys "3 * 9", :vastaus "27"}
-                 {:kysymys "3 + 7", :vastaus "10"}
-                 {:kysymys "9 + 1", :vastaus "10"}
-                 {:kysymys "9 + 2", :vastaus "11"}
+                 {:kysymys "2 * 2", :vastaus "4", :luokka :kertolasku}
+                 {:kysymys "2 * 3", :vastaus "6", :luokka :kertolasku}
+                 {:kysymys "2 * 4", :vastaus "8", :luokka :kertolasku}
+                 {:kysymys "2 * 5", :vastaus "10", :luokka :kertolasku}
+                 {:kysymys "2 * 6", :vastaus "12", :luokka :kertolasku}
+                 {:kysymys "2 * 7", :vastaus "14", :luokka :kertolasku}
+                 {:kysymys "2 * 8", :vastaus "16", :luokka :kertolasku}
+                 {:kysymys "2 * 9", :vastaus "18", :luokka :kertolasku}
+                 {:kysymys "3 * 3", :vastaus "9", :luokka :kertolasku}
+                 {:kysymys "3 * 4", :vastaus "12", :luokka :kertolasku}
+                 {:kysymys "3 * 5", :vastaus "15", :luokka :kertolasku}
+                 {:kysymys "3 * 6", :vastaus "18", :luokka :kertolasku}
+                 {:kysymys "3 * 7", :vastaus "21", :luokka :kertolasku}
+                 {:kysymys "3 * 8", :vastaus "24", :luokka :kertolasku}
+                 {:kysymys "3 * 9", :vastaus "27", :luokka :kertolasku}
+                 {:kysymys "4 * 4", :vastaus "16", :luokka :kertolasku}
+                 {:kysymys "4 * 5", :vastaus "20", :luokka :kertolasku}
+                 {:kysymys "4 * 6", :vastaus "24", :luokka :kertolasku}
+                 {:kysymys "4 * 7", :vastaus "28", :luokka :kertolasku}
+                 {:kysymys "4 * 8", :vastaus "32", :luokka :kertolasku}
+                 {:kysymys "4 * 9", :vastaus "36", :luokka :kertolasku}
+                 {:kysymys "5 * 5", :vastaus "25", :luokka :kertolasku}
+                 {:kysymys "5 * 6", :vastaus "30", :luokka :kertolasku}
+                 {:kysymys "5 * 7", :vastaus "35", :luokka :kertolasku}
+                 {:kysymys "5 * 8", :vastaus "40", :luokka :kertolasku}
+                 {:kysymys "5 * 9", :vastaus "45", :luokka :kertolasku}
+                 {:kysymys "6 * 6", :vastaus "36", :luokka :kertolasku}
+                 {:kysymys "6 * 7", :vastaus "42", :luokka :kertolasku}
+                 {:kysymys "6 * 8", :vastaus "48", :luokka :kertolasku}
+                 {:kysymys "6 * 9", :vastaus "54", :luokka :kertolasku}
+                 {:kysymys "7 * 7", :vastaus "49", :luokka :kertolasku}
+                 {:kysymys "7 * 8", :vastaus "56", :luokka :kertolasku}
+                 {:kysymys "7 * 9", :vastaus "63", :luokka :kertolasku}
+                 {:kysymys "8 * 8", :vastaus "64", :luokka :kertolasku}
+                 {:kysymys "8 * 9", :vastaus "72", :luokka :kertolasku}
+                 {:kysymys "9 * 9", :vastaus "81", :luokka :kertolasku}
 
-                 ;; {:kysymys "4 * 4", :vastaus "16"}
-                 ;; {:kysymys "4 * 5", :vastaus "20"}
-                 ;; {:kysymys "4 * 6", :vastaus "24"}
-                 ;; {:kysymys "4 * 7", :vastaus "28"}
-                 ;; {:kysymys "4 * 8", :vastaus "32"}
-                 ;; {:kysymys "4 * 9", :vastaus "36"}
-                 ;; {:kysymys "5 * 5", :vastaus "25"}
-                 ;; {:kysymys "5 * 6", :vastaus "30"}
-                 ;; {:kysymys "5 * 7", :vastaus "35"}
-                 ;; {:kysymys "5 * 8", :vastaus "40"}
-                 ;; {:kysymys "5 * 9", :vastaus "45"}
-                 ;; {:kysymys "6 * 6", :vastaus "36"}
-                 ;; {:kysymys "6 * 7", :vastaus "42"}
-                 ;; {:kysymys "6 * 8", :vastaus "48"}
-                 ;; {:kysymys "6 * 9", :vastaus "54"}
-                 ;; {:kysymys "7 * 7", :vastaus "49"}
-                 ;; {:kysymys "7 * 8", :vastaus "56"}
-                 ;; {:kysymys "7 * 9", :vastaus "63"}
-                 ;; {:kysymys "8 * 8", :vastaus "64"}
-                 ;; {:kysymys "8 * 9", :vastaus "72"}
-                 ;;{:kysymys "9 * 9", :vastaus "81"}
+                 {:kysymys "Mikä nimi lampaalle pitää antaa että se vaihtaa väriä koko ajan?", :vastaus "jeb_" :luokka :minecraft}
+                 {:kysymys "Kuinka monta sydäntä on manaajalla?", :vastaus "24" :luokka :minecraft}
+                 {:kysymys "Minne lampaita voi spawnata?", :vastaus "Ruoholle jonka valoisuus on yhdeksän tai enemmän." :luokka :minecraft}
+                 ;; {:kysymys "Onko aurinko noussut?", :vastaus "ei"}
+                 ;; {:kysymys "Onko äiti herännyt?", :vastaus "kyllä"}
+                 ;; {:kysymys "1000 * 1000", :vastaus "1 000 000"}
+                 ;; {:kysymys "yksi plus kaksi", :vastaus "kolme"}
+                 {:kysymys "2 + 2", :vastaus "4" :luokka :lumo}
+                 {:kysymys "1 - 1", :vastaus "0" :luokka :lumo}
+                 {:kysymys "3 + 4", :vastaus "7" :luokka :lumo}
                  ])
 
 (comment
@@ -541,7 +540,8 @@
              y (range 2 10)
              :when (<= x y)]
          {:kysymys (str x " * " y)
-          :vastaus (str (* x y))}))
+          :vastaus (str (* x y))
+          :luokka :kertolasku}))
   (rand-nth #{1 2 3})
   )
 
@@ -574,7 +574,7 @@
                         (map (fn [[ensimmäinen toinen]]
                                (assoc toinen
                                       :millisekunteja-edelliseen-kertaan (.toMillis (java.time.Duration/between (:aika ensimmäinen)
-                                                                                                           (:aika toinen))))))
+                                                                                                                (:aika toinen))))))
                         (concat [(first tulokset)])))))))
 
 (defn miettimisaika-osaamiseksi [miettimisaika]
@@ -638,7 +638,7 @@
            (millisekunteja-edelliseen-kertaan-kertoimeksi (:millisekunteja-edelliseen-kertaan tulos)))))
 
 (deftest test-osaaminen
-  (is (= 
+  (is (=
        (osaaminen {:kysymys {:kysymys "3 * 4", :vastaus "12"},
                    :miettimisaika 42896,
                    :tulos :osattiin}))))
@@ -675,57 +675,15 @@
                          :osaaminen 0}))))))
 
 (comment
-  (partition 2 1 [1 2])
   (def log (atom []))
 
   (viimeisimmät-tulokset-lokilta @log)
 
-  (->> @log
-       loki-tuloksiksi
-       lisää-ajat-edelliseen-kertaan
-       lisää-osaamiset-tuloksiin
-       #_viimeisimmät-tulokset)
   (spit "temp/valon-kysymysloki" @log)
   (reset! log (eval (read-string (slurp "temp/valon-kysymysloki"))))
 
   (viimeisimmät-tulokset (lisää-osaamiset-tuloksiin (lisää-ajat-edelliseen-kertaan (loki-tuloksiksi @log))))
-
-  (osaamiset @log kysymykset)
-  (def test-log [{:aika
-                  #time/zoned-date-time "2020-11-29T06:13:36.214+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
-                  :tapahtuma :näytettiin-kysymys}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:39.707+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
-                  :tapahtuma :näytettiin-vastaus}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:41.596+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko äiti herännyt?", :vastaus "ei"},
-                  :tapahtuma :ei-osattu}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:41.597+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
-                  :tapahtuma :näytettiin-kysymys}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:44.240+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
-                  :tapahtuma :näytettiin-vastaus}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:45.613+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "Onko aurinko noussut?", :vastaus "ei"},
-                  :tapahtuma :osattiin}
-                 {:aika
-                  #time/zoned-date-time "2020-11-29T06:13:45.614+02:00[Europe/Helsinki]",
-                  :kysymys {:kysymys "9 + 1", :vastaus "10"},
-                  :tapahtuma :näytettiin-kysymys}])
-
-
-
-
-
-
-  ) ;; TODO: remove-me
+  )
 
 
 (defn lokita! [tila tapahtuma]
@@ -744,9 +702,23 @@
                      (lokita! tila :näytettiin-kysymys))
 
             :alkuarvo
-            (let [kysymykset (set (take 3 kysymykset))
-                  #_#{{:kysymys "3 * 8", :vastaus "24"}
-                      {:kysymys "3 * 9", :vastaus "27"}}]
+            (let [kysymykset (set/union (set (->> (osaamiset @log
+                                                             kysymykset)
+                                                  (shuffle)
+                                                  (remove (fn [tulos]
+                                                            (= :lumo (-> tulos :kysymys :luokka))))
+                                                  (filter (fn [tulos]
+                                                            (< (:osaaminen tulos) 0.7)))
+
+                                                  (map :kysymys)
+                                                  (take 8))
+                                             #_kysymykset
+                                             #_(take 3 kysymykset))
+                                        #_(set (->> (osaamiset @log
+                                                               kysymykset)
+                                                    (filter (fn [tulos]
+                                                              (= :lumo (-> tulos :kysymys :luokka))))
+                                                    (map :kysymys))))]
               {:jäljellä-olevat-kysymykset kysymykset
                :seuraava-kysymys (rand-nth (vec kysymykset))
                :tila :kysymys})
@@ -788,31 +760,26 @@
                  :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila)))
                                      (teksti "Paina \"k\" nähdäksesi vastauksen."
                                              30))
-                 :vastaus (allekkain (teksti (:vastaus (:seuraava-kysymys tila)))
+                 :vastaus (allekkain (teksti (str (:kysymys (:seuraava-kysymys tila))
+                                                  " = "
+                                                  (:vastaus (:seuraava-kysymys tila))))
+                                     (teksti (format "Aikaa kului: %.1f sekuntia" (double (/ (let [[aloitus lopetus] (take-last 2 @log)]
+                                                                                               (.toMillis (java.time.Duration/between (:aika aloitus)
+                                                                                                                                      (:aika lopetus))))
+                                                                                             1000)))
+                                             30)
                                      (teksti "Paina \"j\" jos osasit ja \"k\" jos et osannut."
+                                             30)
+                                     (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
                                              30))
-                 :valmis (teksti "Opit kaikki!"))
-               (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
-                       30)
-               (layouts/vertically-2 {}
-                                     (for [osaaminen (->> (osaamiset @log
-                                                                     (:jäljellä-olevat-kysymykset tila))
-                                                          (sort-by :osaaminen))]
-                                       (teksti (str (format "%.2f" (double (:osaaminen osaaminen))) "  =  " (:kysymys (:kysymys osaaminen)))
-                                               30)))))))
-
-(comment
-  (osaamiset @log
-             [])
-  (format "%.2f" (double 1))
-  ) ;; TODO: remove-me
-
-
-
-
-
-
-
+                 :valmis (allekkain (teksti "Opit kaikki!")
+                                    (teksti "Osaamisesi:")
+                                    (layouts/vertically-2 {}
+                                                          (for [osaaminen (->> (osaamiset @log
+                                                                                          (:jäljellä-olevat-kysymykset tila))
+                                                                               (sort-by :osaaminen))]
+                                                            (teksti (str (format "%.0f" (* 100 (double (:osaaminen osaaminen)))) "  =  " (:kysymys (:kysymys osaaminen)))
+                                                                    30)))))))))
 
 
 (comment
