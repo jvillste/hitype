@@ -439,7 +439,7 @@
                                  (rand-nth (remove (funktio [merkki]
                                                             (= merkki
                                                                (:seuraava-merkki (hae tila))))
-                                                   ["A" "H" "L" "S"])))
+                                                   ["A" "S" "D" "F" "J" "K" "L" "Ö"])))
 
                          (aseta! tila
                                  :merkki
@@ -711,7 +711,7 @@
                                                             (< (:osaaminen tulos) 0.7)))
 
                                                   (map :kysymys)
-                                                  (take 8))
+                                                  (take 6))
                                              #_kysymykset
                                              #_(take 3 kysymykset))
                                         #_(set (->> (osaamiset @log

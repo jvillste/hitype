@@ -90,9 +90,11 @@
                                          (assoc :tapahtuman-kuvaus "Istutit porkkanat")
                                          (poista-komento :takapiha :istuta-porkkanoita)))})
 
+(def maksimienergia 15)
+
 (defn lisää-energiaa [maailma energiamäärä]
   (update maailma :energia (fn [energia]
-                             (min 100
+                             (min maksimienergia
                                   (+ energia energiamäärä)))))
 
 (def syö-porkkanat {:tunnus :syö-porkkanat
@@ -102,7 +104,7 @@
                                     (assoc-in [:paikat :takapiha :porkkanoidenistutusvuoro]
                                               nil)
                                     (assoc :tapahtuman-kuvaus "Söit porkkanat")
-                                    (lisää-energiaa 50)
+                                    (lisää-energiaa (int (/ maksimienergia 2)))
                                     (poista-komento :takapiha :syö-porkkanat)
                                     (update-in [:paikat :takapiha :komennot] conj istuta-porkkanoita)
                                     (lisää-kokemusta 20)))})
@@ -181,8 +183,9 @@
   (merge {:paikat paikat
           :kokemuspisteet 0
           :pelaajan-paikka :olohuone
+          :tavarat []
           :pelivuoro 1
-          :energia 100}))
+          :energia maksimienergia}))
 
 (defn pelaajan-paikka [maailma]
   (get-in maailma [:paikat (:pelaajan-paikka maailma)]))
@@ -288,16 +291,15 @@
            (:tapahtuman-kuvaus (maailma-komentojen-jälkeen :katso-telkkaria
                                                            :katso-telkkaria)))))
 
-  (is (= "Telkkarista tulee ryhmä hauta."
-         (binding [onnistuiko? (constantly false)]
-           (:tapahtuman-kuvaus (paikan-kuvaus (maailma-komentojen-jälkeen [:mene :keittiö]
-                                                                          [:mene :takapiha]
-                                                                          :istuta-porkkanoita
-                                                                          :odota
-                                                                          :odota
-                                                                          :odota
-                                                                          :odota
-                                                                          :syö-porkkanat)))))))
+  (is (= "Söit porkkanat"
+         (:tapahtuman-kuvaus (maailma-komentojen-jälkeen [:mene :keittiö]
+                                                         [:mene :takapiha]
+                                                         :istuta-porkkanoita
+                                                         :odota
+                                                         :odota
+                                                         :odota
+                                                         :odota
+                                                         :syö-porkkanat)))))
 
 
 ;; GUI

@@ -19,7 +19,7 @@
 
 (def original-frames (buffered-image/gif-frames (io/resource "explosion.gif")))
 (def frames (vec (concat (drop 7 original-frames)
-                           (take 7 original-frames))))
+                         (take 7 original-frames))))
 (comment
 
   (live/recording-start "resources/valo.wav")

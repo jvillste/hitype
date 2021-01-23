@@ -312,6 +312,6 @@
 (defn start []
   (application/start-window #'view))
 
-(do
+#_(do
   #_(println (with-out-str (pprint/pprint huone)))
   (println (describe-huone huone)))
