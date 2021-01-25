@@ -18,7 +18,12 @@
             [clojure.xml :as xml]
             [medley.core :as medley]
             [overtone.midi :as midi]
-            [clojure.core.async :as async]))
+            [clojure.core.async :as async]
+
+            ;; [overtone.live      :as live]
+            ;; [overtone.inst.piano :as piano]
+            ;; [overtone.music.time :as time]
+            ))
 
 (defn launchpad-device []
   (medley/find-first (fn [device]
@@ -27,9 +32,9 @@
                      (midi/midi-sources)))
 
 (defonce pressed-keys (dependable-atom/atom #{}))
-
-
-
+(comment
+  (reset! pressed-keys #{})
+  ) ;; TODO: remove-me
 
 
 (defn text [string & [size color]]
@@ -101,35 +106,77 @@
 
   ) ;; TODO: remove-me
 
-(def sexteenth-note-width 10)
-(def line-width 1)
-(def line-gap (/ sexteenth-note-width 1.2))
+(def sexteenth-note-width 15)
+(def line-width 2)
+(def line-gap (/ sexteenth-note-width 1.4))
 (def row-height (* 5 line-gap))
-(def middle-finger-shade 240)
-(def gray-line-shade 200)
-(def fat-line-shade 100)
+(def middle-finger-shade 235)
+(def gray-line-shade 240)
+(def fat-line-shade 30)
 (def note-names ["C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"])
+(def flat-note-names ["C" "Db" "D" "Eb" "E" "F" "Gb" "G" "Ab" "A" "Bb" "B"])
 (def major [2 2 1 2 2 2 1])
+(def minor [2 1 2 2 1 2 2])
 
-(defn note-in-scale [root scale n]
-  (+ root
+(def note-index-to-name (into {} (map-indexed vector note-names)))
+(def note-index-to-flat-name (into {} (map-indexed vector flat-note-names)))
+(def note-name-to-index (into {} (map vec (map reverse (map-indexed vector note-names)))))
+(def flat-note-name-to-index (into {} (map vec (map reverse (map-indexed vector flat-note-names)))))
+
+(defn note-in-scale [root-index scale n]
+  (+ root-index
      (->> scale
           repeat
           (apply concat)
           (take n)
           (reduce +))))
 
-(defn notes-in-scale [root count scale]
-  (map (partial note-in-scale root scale)
-       (range count)))
+(defn notes-in-scale [root-index scale]
+  (map (comp #(mod % 12)
+             (partial note-in-scale root-index scale))
+       (range 7)))
 
 (deftest test-notes-in-scale
   (is (= '(0 2 3 5 6)
-         (notes-in-scale 0 5 [2 1]))))
+         (notes-in-scale 0 5 [2 1])))
+
+  (is (= '("C" "D" "E" "F" "G" "A" "B")
+         (map note-index-to-flat-name
+              (notes-in-scale (get note-name-to-index
+                                   "C")
+                              major))))
+
+  (is (= '("A" "B" "C" "D" "E" "F" "G")
+         (map note-index-to-flat-name
+              (notes-in-scale (get note-name-to-index
+                                   "A")
+                              minor)))))
 
 (defn in-scale? [scale pitch]
   (contains? (set (notes-in-scale 0 12 scale))
              (mod pitch 12)))
+
+(defn in-key? [scale root-index pitch]
+  (contains? (set (notes-in-scale root-index
+                                  scale))
+             (mod (- pitch middle-c)
+                  12)))
+
+(deftest test-in-key?
+  (is (= true
+         (in-key? major
+                  (note-name-to-index "C")
+                  middle-c)))
+
+  (is (= false
+         (in-key? major
+                  (note-name-to-index "C")
+                  (+ 1 middle-c))))
+
+  (is (= true
+         (in-key? major
+                  (note-name-to-index "C")
+                  (+ 2 middle-c)))))
 
 (defn octave-number [pitch]
   (dec (quot pitch 12)))
@@ -140,14 +187,15 @@
 
 (defn line [pitch]
   (layouts/superimpose (let [number-in-row (mod pitch 5)
-                             fat? (contains? #{1 2 4}
-                                             number-in-row)
+                             fat? (contains? ;;  #{ 1 2 3 4 }
+                                    #{ 1  3 4 }
+                                   number-in-row)
                              shaded-background? (in-scale? major pitch)
                              #_(contains? #{1}
                                           #_#{0 2}
                                           number-in-row)
                              line-width (if fat?
-                                          (* 2 line-width)
+                                          (* 1 line-width)
                                           line-width)]
                          (layouts/superimpose
                           (assoc (visuals/rectangle-2 :fill-color (if fat?
@@ -275,7 +323,7 @@
 
 
 (defn stave [notes]
-  (let [minimum-pitch (- middle-c 12) #_(apply min (map :pitch notes))
+  (let [minimum-pitch (- middle-c (* 2 12)) #_(apply min (map :pitch notes))
         maximum-pitch (+ middle-c (* 2 12)) #_(apply max (map :pitch notes))
         first-note-start-time (:start (first notes))
         measure-count (/ (- (apply max (map :end notes))
@@ -311,25 +359,11 @@
                               (< (:start note)
                                  (* 6 4)))))
 
-  
+
 
   )
 
 (defonce notes (dependable-atom/atom []))
-
-(comment
-  (reset! notes
-          (->> (tracks "/Users/jukka/Downloads/Believer_-_Imagine_Dragons_Advanced.mid"
-                       #_"/Users/jukka/google-drive/jukka/music/testi.mid")
-               (drop 0)
-               (first)
-               #_(map (partial quantisize-note
-                               (/ 1 8)))
-               #_(take-while (fn [note]
-                             (< (:start note)
-                                (* 6 4))))))
-  ) ;; TODO: remove-me
-
 
 (defn wrap-keyboard-event-hanlder [handler]
   (fn [event]
@@ -360,6 +394,91 @@
 (defn handle-keyboard-event [state-atom event]
   (#'handle-keyboard-event2 state-atom event))
 
+(defn notes-by-bar [notes]
+  (into {}
+        (for [bar-number (range (Math/ceil (/ (apply max (map :end notes))
+                                              4)))]
+          [bar-number (filter (fn [note]
+                                (and (<= (:start note)
+                                         (* (inc bar-number) 4))
+                                     (>= (:end note)
+                                         (* bar-number 4))))
+                              notes)])))
+
+(deftest test-notes-by-bar
+  (is (= '{0 ({:start 1, :end 2})}
+       (notes-by-bar [{:start 1
+                       :end 2}])))
+
+  (is (= '{0 ({:start 1, :end 5}),
+           1 ({:start 1, :end 5})}
+       (notes-by-bar [{:start 1
+                       :end 5}]))))
+
+(defn playing-notes [notes-by-bar time]
+  (filter (fn [note]
+            (and (<= (:start note)
+                     time)
+                 (>= (:end note)
+                     time)))
+          (get notes-by-bar
+               (int (/ time 4)))))
+
+(defn midi-change-events [previous-playing-notes-set current-playing-notes-set]
+  (concat (for [stopped-note (set/difference previous-playing-notes-set current-playing-notes-set)]
+            {:pitch (:pitch stopped-note)
+             :command :note-off})
+          (for [started-note (set/difference current-playing-notes-set
+                                             previous-playing-notes-set)]
+            {:pitch (:pitch started-note)
+             :command :note-on})))
+
+(defn play-notes [beats-per-minute start-time notes]
+  (let [notes-by-bar (notes-by-bar notes)
+        last-bar (apply max (keys notes-by-bar))
+        stop-atom (atom false)
+        playing-notes-atom (atom #{})
+        play-start-time (System/currentTimeMillis)
+        beat-time-now (fn []
+                        (* (/ (- play-start-time
+                                 (System/currentTimeMillis))
+                              1000 60)
+                           beats-per-minute))]
+    (prn 'starting (beat-time-now)) ;; TODO: remove-me
+    (.start (Thread. (fn []
+                       (while (and (not @stop-atom)
+                                   (< last-bar
+                                      (inc (Math/ceil (/ (beat-time-now)
+                                                         4)))))
+                         (prn 'beat-time-now (beat-time-now))
+                         (let [playing-notes-set (set (playing-notes notes-by-bar
+                                                                     (beat-time-now)))]
+                           (prn playing-notes-set) ;; TODO: remove-me
+
+                           (doseq [midi-event (midi-change-events @playing-notes-atom
+                                                                  playing-notes-set)]
+                             (prn midi-event))
+                           (reset! playing-notes-atom playing-notes-set))
+                         (Thread/sleep 1000)))))
+    stop-atom))
+
+(comment
+  (midi/midi-sinks)
+  (midi/midi-note-off)
+  (do (.start (Thread. (fn []
+                       (Thread/sleep 100)
+                       (prn "moi"))))
+      (prn 'started))
+
+  (let [stop-atom (play-notes 120 0 [{:start 1
+                                      :end 2}])]
+    (Thread/sleep 3000)
+    (reset! stop-atom true))
+
+
+  ) ;; TODO: remove-me
+
+
 (defn base-view []
   (let [state-atom (dependable-atom/atom {:start 0})]
     (keyboard/set-focused-event-handler! (partial handle-keyboard-event
@@ -378,7 +497,7 @@
                                          (take-while (fn [note]
                                                        (< (:start note)
                                                           (* 4 (+ (:start @state-atom)
-                                                                  8))))))
+                                                                  6))))))
                                     #_(for [n (range 8)]
                                         (let [note (note-in-scale 0 major n)]
                                           {:pitch note
@@ -404,9 +523,42 @@
         (do (swap! pressed-keys disj (:note midi-message))
             (async/>!! event-channel {:type :repaint}))))
 
+(defn best-fitting-root-index [scale notes]
+  (->> (for [root-index (range 12)]
+         {:root-index root-index
+          :hit-ratio (/ (->> notes
+                             (map :pitch)
+                             (filter (partial in-key? scale root-index))
+                             (count))
+                        (count notes))})
+       (sort-by :hit-ratio)
+       (reverse)
+       (first)
+       (:root-index)))
+
+
 (comment
 
   (midi/midi-handle-events (midi/midi-in "Launchpad X LPX MIDI Out")
                            #'handle-midi-message)
+
+  (do (reset! notes
+              (->> (tracks "/Users/jukka/Downloads/tassako_taa_oli.mid"
+                           #_"/Users/jukka/Downloads/Believer_-_Imagine_Dragons_Advanced.mid"
+                           #_"/Users/jukka/google-drive/jukka/music/testi.mid")
+                   (drop 0)
+                   (first)
+                   #_(map (partial quantisize-note
+                                   (/ 1 8)))))
+      nil)
+
+  (note-index-to-name (best-fitting-root-index minor
+                                               #_major
+                                               (first (tracks "/Users/jukka/Downloads/tassako_taa_oli.mid"))))
+
+  (def synth (midi/midi-out))
+  (do (midi/midi-note-on synth 40 100)
+      (Thread/sleep 500)
+      (midi/midi-note-off synth 0))
 
   ) ;; TODO: remove-me
