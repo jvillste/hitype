@@ -52,39 +52,69 @@
                               :height 20)))
 
 (defn handle-keyboard-event2 [state-atom event]
-   (prn event)
+  #_(prn event)
 
-  (when (= :key-pressed (:type event))
-    (case (:key event)
-      :1 (swap! state-atom assoc :scale 5)
-      :2 (swap! state-atom assoc :scale 20)
-      nil)))
+  (case (:type event)
+    :key-pressed
+    (do (case (:key event)
+          :1 (swap! state-atom assoc :scale 5)
+          :2 (swap! state-atom assoc :scale 20)
+          nil)
+
+        (swap! state-atom update :keys-down conj (:key event)))
+    :key-released
+    (swap! state-atom update :keys-down disj (:key event))
+
+    nil))
 
 (defn handle-keyboard-event [state-atom event]
   (#'handle-keyboard-event2 state-atom event))
 
 (defn handle-mouse-event [state-atom _node event]
   (when (:x event)
-    (swap! state-atom
-           assoc
-           :pointer {:x (:x event)
-                     :y (:y event)}))
-  (prn (dissoc event :nodes-under-mouse))
-  event)
+    (let [state @state-atom]
+      (swap! state-atom
+             assoc
+             :pointer {:x (:x event)
+                       :y (:y event)})
+      (case (:type event)
+        :mouse-pressed (swap! state-atom
+                              assoc
+                              :drag-start {:x (:x event)
+                                           :y (:y event)})
+        :mouse-released (do
+                          (when (contains? (:keys-down @state-atom)
+                                           :space)
+                            (swap! state-atom
+                                   assoc
+                                   :canvas-offset
+                                   {:x (+ (:x (:canvas-offset @state-atom))
+                                          (:x (:canvas-drag-offset @state-atom)))
+                                    :y (+ (:y (:canvas-offset @state-atom))
+                                          (:y (:canvas-drag-offset @state-atom)))}
+                                   :canvas-drag-offset {:x 0 :y 0}))
+                          (swap! state-atom
+                                 dissoc
+                                 :drag-start))
 
-(defn handle-canvas-mouse-event [state-atom _node event]
-  (when (:x event)
-    (swap! state-atom
-           assoc
-           :canvas-pointer {:x (/ (:local-x event)
-                                  (:scale @state-atom))
-                            :y (/ (:local-y event)
-                                  (:scale @state-atom))}))
+        :mouse-moved (do
+                       (prn (contains? (:keys-down @state-atom)
+                                       :space)
+                            (:drag-start state)) ;; TODO: remove-me
+
+                       (when (and (contains? (:keys-down @state-atom)
+                                             :space)
+                                  (:drag-start state))
+                         (swap! state-atom
+                                assoc
+                                :canvas-drag-offset
+                                {:x (- (:x event)
+                                       (:x (:drag-start state)))
+                                 :y (- (:y event)
+                                       (:y (:drag-start state)))})))
+        nil)))
   #_(prn (dissoc event :nodes-under-mouse))
   event)
-
-#_(defn add-mouse-event-handler [state-atom node]
-  (assoc node :mouse-event-handler [handle-mouse-event state-atom]))
 
 (defn quantisize [scale value]
   (* scale
@@ -99,9 +129,13 @@
 
 (defn canvas-view [state-atom]
   (let [state @state-atom]
-    (-> (layouts/superimpose (layouts/scale (:scale state)
-                                            (:scale state)
-                                            (visuals/image image))
+    (-> (layouts/superimpose (assoc (layouts/scale (:scale state)
+                                                   (:scale state)
+                                                   (visuals/image image))
+                                    :x (+ (-> state :canvas-offset :x)
+                                          (-> state :canvas-drag-offset :x))
+                                    :y (+ (-> state :canvas-offset :y)
+                                          (-> state :canvas-drag-offset :y)))
 
                              (assoc (visuals/rectangle-2 :fill-color (:color state))
                                     :x (quantisize (:scale state)
@@ -120,8 +154,10 @@
 
 (defn base-view []
   (let [state-atom (dependable-atom/atom {:scale 5
+                                          :keys-down #{}
                                           :pointer {:x 0 :y 0}
-                                          :canvas-pointer {:x 0 :y 0}
+                                          :canvas-offset {:x 0 :y 0}
+                                          :canvas-drag-offset {:x 0 :y 0} 
                                           :color [100 100 0 255]})]
     (keyboard/set-focused-event-handler! (partial handle-keyboard-event
                                                   state-atom))
