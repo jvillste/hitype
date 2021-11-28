@@ -94,18 +94,17 @@
                               assoc
                               :drag-start {:x (:x event)
                                            :y (:y event)})
-        :mouse-released (do
-                          (when (contains? (:keys-down @state-atom)
-                                           :space)
+        :mouse-released (do (when (contains? (:keys-down @state-atom)
+                                             :space)
+                              (swap! state-atom
+                                     assoc
+                                     :canvas-offset
+                                     (add-vectors (:canvas-offset @state-atom)
+                                                  (:canvas-drag-offset @state-atom))
+                                     :canvas-drag-offset {:x 0 :y 0}))
                             (swap! state-atom
-                                   assoc
-                                   :canvas-offset
-                                   (add-vectors (:canvas-offset @state-atom)
-                                                (:canvas-drag-offset @state-atom))
-                                   :canvas-drag-offset {:x 0 :y 0}))
-                          (swap! state-atom
-                                 dissoc
-                                 :drag-start))
+                                   dissoc
+                                   :drag-start))
 
         :mouse-moved (when (and (contains? (:keys-down @state-atom)
                                            :space)
@@ -132,13 +131,13 @@
 
 (defn canvas-view [state-atom]
   (let [state @state-atom]
-    (-> (layouts/superimpose (assoc (layouts/scale (:scale state)
-                                                   (:scale state)
-                                                   (visuals/image image))
-                                    :x (+ (-> state :canvas-offset :x)
-                                          (-> state :canvas-drag-offset :x))
-                                    :y (+ (-> state :canvas-offset :y)
-                                          (-> state :canvas-drag-offset :y)))
+    (-> (layouts/superimpose (let [canvas-offset (add-vectors (:canvas-offset state)
+                                                              (:canvas-drag-offset state))]
+                               (assoc (layouts/scale (:scale state)
+                                                     (:scale state)
+                                                     (visuals/image image))
+                                      :x (:x canvas-offset)
+                                      :y (:y canvas-offset)))
 
                              (assoc (visuals/rectangle-2 :fill-color (:color state))
                                     :x (quantisize (:scale state)
