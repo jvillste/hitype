@@ -20,10 +20,153 @@
             [overtone.midi :as midi]
             [clojure.core.async :as async]
 
-            ;; [overtone.live      :as live]
-            ;; [overtone.inst.piano :as piano]
+            [overtone.music.pitch :as pitch]
+
+            [overtone.live      :as live]
+            [overtone.inst.piano :as piano]
+            [overtone.at-at :as at-at]
             ;; [overtone.music.time :as time]
-            ))
+            )
+  (:import java.util.concurrent.PriorityBlockingQueue
+           [org.apache.commons.net.ntp TimeStamp]))
+
+(live/definst saha [pitch 440]
+  (live/saw pitch))
+
+(live/definst trem [freq 440 depth 10 rate 6 length 3]
+  (* 0.3
+     (live/line:kr 0.5 1 length live/FREE)
+     (live/saw (+ freq (* depth (live/sin-osc:kr rate))))))
+
+(live/defsynth foo [freq 200 dur 0.5]
+  (let [src (live/saw [freq (* freq 1.01) (* 0.99 freq)])
+        low (live/sin-osc (/ freq 2))
+        filt (live/lpf src (live/line:kr (* 10 freq) freq 10))
+        env (live/env-gen (live/perc 0.1 dur) :action live/FREE)]
+    (live/out 0 (live/pan2 (* 0.8 low env filt)))))
+
+(live/definst overpad [note 60 amp 0.7 attack 0.001 release 2]
+  (let [freq  (live/midicps note)
+        env   (live/env-gen (live/perc attack release) :action live/FREE)
+        f-env (+ freq (* 3 freq (live/env-gen (live/perc 0.012 (- release 0.1)))))
+        bfreq (/ freq 2)
+        sig   (apply +
+                     (concat (* 0.7 (live/sin-osc [bfreq (* 0.99 bfreq)]))
+                             (live/lpf (live/saw [freq (* freq 1.01)]) f-env)))]
+    (* amp env sig)))
+
+(def one-twenty-bpm (live/metronome 120))
+
+; this function will play our sound at whatever tempo we've set our metronome to
+(defn looper [nome sound]
+    (let [beat (nome)]
+        (live/at (nome beat) (sound))
+        (live/apply-by (nome (inc beat)) looper nome sound [])))
+
+(live/definst kick []
+  (let [src (live/sin-osc 200)
+        env (live/env-gen (live/perc 0.001 0.3) :action live/FREE)]
+    (* 0.7 src env)))
+
+(def pool (at-at/mk-pool))
+
+(defn at [time function]
+  (at-at/at time
+            function
+            pool))
+(comment
+  (kick)
+
+  {:path "/s_new", :type-tag "siii", :args ("hitype.stave-grinder/kick" 54 1 38)}
+  (let [now (live/now)]
+    (live/at (+ now 1000)
+             (overpad :release 3)))
+
+  (alter-var-root #'overtone.osc.util/osc-debug* (constantly (ref true)))
+  @overtone.osc.util/osc-debug*
+  (overtone.osc/osc-send-bundle (deref overtone.sc.machinery.server.comms/server-osc-peer*)
+                                (let [now (+ (live/now)
+                                             100)]
+                                  (overtone.sc.dyn-vars/with-inactive-modification-error
+                                    :exception
+                                    (do #_overtone.sc.dyn-vars/without-node-blocking
+                                        (overtone.osc/in-unested-osc-bundle
+                                         (deref overtone.sc.machinery.server.comms/server-osc-peer*)
+                                         (+ now 1)
+                                         (do (overpad :release 3)))))))
+
+  (type (overtone.osc.util/mk-osc-bundle (live/now)
+                                         (binding [overtone.osc.dyn-vars/*osc-msg-bundle* (atom [])]
+                                           (overpad :release 3)
+                                           @overtone.osc.dyn-vars/*osc-msg-bundle*)))
+
+  (
+   (overtone.osc/mk-osc-bundle (live/now) @*osc-msg-bundle*))
+  (overpad :release 3)
+  (foo 200 1)
+  (meta  live/env-gen)
+
+  (def pool (at-at/mk-pool))
+
+
+  (at (+ (at-at/now) 1000)
+      (fn []
+        (kick)))
+
+  (live/at (+ (live/now) 1000)
+           (kick))
+
+  ()
+
+  (overtone.osc/osc-send-msg
+   (deref overtone.sc.machinery.server.comms/server-osc-peer*)
+   {:path "/s_new", :type-tag "siii", :args '("hitype.stave-grinder/kick" 54 1 38)})
+
+  (let [peer (deref overtone.sc.machinery.server.comms/server-osc-peer*)]
+    (.put ^PriorityBlockingQueue (:send-q peer) [peer (with-meta {:path "/s_new", :type-tag "siii", :args '("hitype.stave-grinder/kick" 54 1 38)
+                                                                  :timestamp (+ (live/now) 1000)} {:type :osc-msg})]))
+  (trem 200 60 0.8 10)
+  (term )
+
+  (live/at (nome (inc (nome)))
+           (overpad))
+
+  (foo)
+  (live/stop)
+
+  (looper one-twenty-bpm piano/piano)
+
+  (def kick (live/freesound-sample 2086)
+    #_(live/sample (live/freesound-path 2086)))
+
+  (def nome (live/metronome 120))
+  (nome)
+
+  (do (live/at 1000 (saha 50))
+      (live/at 2000 (live/kill saha)))
+
+  (live/freesound-sample 2086)
+
+  (live/dibrown)
+  (live/midicps 60)
+
+  (do
+    (def node (saha 50))
+    (Thread/sleep 1000)
+    (live/kill saha))
+
+  (def node (piano/piano))
+  (def node2 (saha))
+  (live/kill node)
+  (live/stop)
+
+  (def p (piano/piano 60))
+  (keys p)
+
+  (live/stop-player )
+  (live/demo 7 (live/lpf (live/mix (live/saw [50 (live/line 100 1600 5) 101 100.5]))
+                         (live/lin-lin (live/lf-tri (live/line 2 20 5)) -1 1 400 4000)))
+  ) ;; TODO: remove-me
 
 (defn launchpad-device []
   (medley/find-first (fn [device]
@@ -34,6 +177,7 @@
 (defonce pressed-keys (dependable-atom/atom #{}))
 (comment
   (reset! pressed-keys #{})
+  @pressed-keys
   ) ;; TODO: remove-me
 
 
@@ -106,6 +250,7 @@
 
   ) ;; TODO: remove-me
 
+(def middle-c 60)
 (def sexteenth-note-width 15)
 (def line-width 2)
 (def line-gap (/ sexteenth-note-width 1.4))
@@ -153,7 +298,7 @@
                               minor)))))
 
 (defn in-scale? [scale pitch]
-  (contains? (set (notes-in-scale 0 12 scale))
+  (contains? (set (notes-in-scale 0 scale))
              (mod pitch 12)))
 
 (defn in-key? [scale root-index pitch]
@@ -255,7 +400,7 @@
                                 :y (- (* 4 line-gap)
                                       line-width))))
 
-(def middle-c 60)
+
 
 (defn quantisize [resolution length]
   (* resolution
@@ -365,34 +510,7 @@
 
 (defonce notes (dependable-atom/atom []))
 
-(defn wrap-keyboard-event-hanlder [handler]
-  (fn [event]
-    (when (= :key-released (:type event))
-      (handler {:näppäin (:key event)
-                :merkki (str (:character event))}))))
 
-(defmacro piirrä-2 [& {:keys [tila alkuarvo näppäimistökäsittelijä kuva aloitus]}]
-  `(do (reset! view-atom
-               (let [~tila (dependable-atom/atom ~alkuarvo)]
-                 (fn []
-                   (when ~aloitus (~aloitus))
-
-                   (fn []
-                     (keyboard/set-focused-event-handler! (wrap-keyboard-event-hanlder ~näppäimistökäsittelijä))
-                     ~kuva))))
-       nil))
-
-
-(defn handle-keyboard-event2 [state-atom event]
-  (when (= :key-pressed (:type event))
-    (cond (= :right (:key event))
-          (swap! state-atom update :start inc)
-
-          (= :left (:key event))
-          (swap! state-atom update :start dec))))
-
-(defn handle-keyboard-event [state-atom event]
-  (#'handle-keyboard-event2 state-atom event))
 
 (defn notes-by-bar [notes]
   (into {}
@@ -415,6 +533,22 @@
        (notes-by-bar [{:start 1
                        :end 5}]))))
 
+(defn bar-number [time]
+  (int (/ time 4)))
+
+(deftest test-bar-number
+  (is (= 0
+         (bar-number 0)))
+
+  (is (= 0
+         (bar-number 1)))
+
+  (is (= 0
+         (bar-number 3)))
+
+  (is (= 1
+         (bar-number 4))))
+
 (defn playing-notes [notes-by-bar time]
   (filter (fn [note]
             (and (<= (:start note)
@@ -422,7 +556,12 @@
                  (>= (:end note)
                      time)))
           (get notes-by-bar
-               (int (/ time 4)))))
+               (bar-number time))))
+
+(deftest test-playing-notes
+  (is (= '({:start 1, :end 2})
+         (playing-notes {0 [{:start 1, :end 2}]}
+                        1))))
 
 (defn midi-change-events [previous-playing-notes-set current-playing-notes-set]
   (concat (for [stopped-note (set/difference previous-playing-notes-set current-playing-notes-set)]
@@ -433,78 +572,190 @@
             {:pitch (:pitch started-note)
              :command :note-on})))
 
-(defn play-notes [beats-per-minute start-time notes]
+(defn play-piano [synth-nodes-atom pitch]
+  (when (not (get @synth-nodes-atom pitch))
+    (let [synth-node (saha (pitch/midi->hz pitch))]
+      (swap! synth-nodes-atom assoc pitch synth-node))))
+
+(defn stop-synth-node [synth-nodes-atom pitch]
+  (when-let [synth-node (get @synth-nodes-atom pitch)]
+    (live/kill synth-node)
+    (swap! synth-nodes-atom dissoc pitch)))
+
+(defn- beat-time-now [play-start-time beats-per-minute]
+  (float (* (/ (- (System/currentTimeMillis)
+                                        play-start-time)
+                                     1000 60)
+                                  beats-per-minute)))
+
+(defn play-notes [beats-per-minute start-time end-time notes]
   (let [notes-by-bar (notes-by-bar notes)
         last-bar (apply max (keys notes-by-bar))
         stop-atom (atom false)
         playing-notes-atom (atom #{})
         play-start-time (System/currentTimeMillis)
         beat-time-now (fn []
-                        (* (/ (- play-start-time
-                                 (System/currentTimeMillis))
-                              1000 60)
-                           beats-per-minute))]
-    (prn 'starting (beat-time-now)) ;; TODO: remove-me
+                        (+ start-time
+                           (beat-time-now play-start-time beats-per-minute)))
+        synth-nodes-atom (atom {})]
+    (prn 'last-bar last-bar) ;; TODO: remove-me
+    (prn 'start-time start-time) ;; TODO: remove-me
+    (prn 'stop-atom stop-atom) ;; TODO: remove-me
+
     (.start (Thread. (fn []
                        (while (and (not @stop-atom)
-                                   (< last-bar
-                                      (inc (Math/ceil (/ (beat-time-now)
-                                                         4)))))
-                         (prn 'beat-time-now (beat-time-now))
+                                   (>= end-time
+                                       (beat-time-now))
+                                   #_(>= last-bar
+                                       (Math/ceil (/ (beat-time-now)
+                                                     4))))
+
                          (let [playing-notes-set (set (playing-notes notes-by-bar
                                                                      (beat-time-now)))]
-                           (prn playing-notes-set) ;; TODO: remove-me
 
                            (doseq [midi-event (midi-change-events @playing-notes-atom
                                                                   playing-notes-set)]
-                             (prn midi-event))
+                             (if (= :note-on (:command midi-event))
+                               (play-piano synth-nodes-atom (:pitch midi-event))
+                               (stop-synth-node synth-nodes-atom (:pitch midi-event))))
                            (reset! playing-notes-atom playing-notes-set))
-                         (Thread/sleep 1000)))))
+                         (Thread/sleep 10)))))
     stop-atom))
 
 (comment
   (midi/midi-sinks)
   (midi/midi-note-off)
   (do (.start (Thread. (fn []
-                       (Thread/sleep 100)
-                       (prn "moi"))))
+                         (Thread/sleep 100)
+                         (prn "moi"))))
       (prn 'started))
 
-  (let [stop-atom (play-notes 120 0 [{:start 1
-                                      :end 2}])]
-    (Thread/sleep 3000)
+  (notes-by-bar (take 40 @notes))
+
+  (let [stop-atom (play-notes 90
+                              6
+                              8
+                              @notes
+                              #_[{:start 1
+                                  :end 2
+                                  :pitch middle-c}
+                                 {:start 1
+                                  :end 2
+                                  :pitch (+ 3 middle-c)}])]
+    (Thread/sleep 10000)
     (reset! stop-atom true))
 
-
+  (live/stop)
   ) ;; TODO: remove-me
 
+(defn- stop-playing [state-atom]
+  (let [state @state-atom]
+    (swap! state-atom assoc
+           :playing? false
+           :play-head-position (+ (:play-head-position state)
+                                  (beat-time-now (:play-start-time state)
+                                                 (:beats-per-minute state))))
+    (reset! (:stop-atom state)
+            true)))
+
+(defn handle-keyboard-event2 [state-atom event]
+  (when (= :key-pressed (:type event))
+    (cond (= :right (:key event))
+          (swap! state-atom update :start inc)
+
+          (= :left (:key event))
+          (swap! state-atom update :start dec)
+
+          (= :enter (:key event))
+          (do (stop-playing state-atom)
+              (swap! state-atom assoc :play-head-position 0))
+
+          (= :space (:key event))
+          (let [state @state-atom]
+            (prn (select-keys state
+                              [:playing?
+                               :stop-atom
+                               :play-start-time
+                               :beats-per-minute
+                               ])) ;; TODO: remove-me
+
+            (if (:playing? state)
+              (stop-playing state-atom)
+
+              (let [stop-atom (play-notes (:beats-per-minute state)
+                                          (:play-head-position state)
+                                          (+ (:play-head-position state) 3)
+                                          @notes)]
+                (swap! state-atom assoc
+                       :stop-atom stop-atom
+                       :playing? true
+                       :play-start-time (System/currentTimeMillis))))))))
+
+(defn handle-keyboard-event [state-atom event]
+  (#'handle-keyboard-event2 state-atom event))
+
+(defn note-number [x y]
+  (+ x (* y 8)))
+
+(defn launchpad-view []
+  (let [grid-size 20]
+    (apply layouts/superimpose
+
+           (for [y (range 8)
+                 x (range 8)]
+             (let [pitch (note-number x y)]
+               (assoc (visuals/rectangle-2 :fill-color (if (in-scale? major pitch)
+                                                         [255 255 255 255]
+                                                         [155 155 155 255])
+                                           (nth note-names
+                                                (mod pitch
+                                                     12)))
+                      :x (* grid-size x)
+                      :y (* grid-size y)
+                      :width grid-size
+                      :height grid-size))))))
 
 (defn base-view []
-  (let [state-atom (dependable-atom/atom {:start 0})]
+  (let [state-atom (dependable-atom/atom {:start 0
+                                          :play-head-position 1.3
+                                          :beats-per-minute 60})]
     (keyboard/set-focused-event-handler! (partial handle-keyboard-event
                                                   state-atom))
     (fn []
-      (animation/swap-state! animation/set-wake-up 1000)
-      @animation/state-atom
-      (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
-                           (layouts/center
-                            (layouts/vertically-2
-                             {:margin 10}
-                             (stave (->> @notes
-                                         (drop-while (fn [note]
-                                                       (< (:start note)
-                                                          (* 4 (:start @state-atom)))))
-                                         (take-while (fn [note]
-                                                       (< (:start note)
-                                                          (* 4 (+ (:start @state-atom)
-                                                                  6))))))
-                                    #_(for [n (range 8)]
-                                        (let [note (note-in-scale 0 major n)]
-                                          {:pitch note
-                                           :number-in-scale (inc (mod n 7))
-                                           :start (* 2 n)
-                                           :duration 2})))
-                             #_(text (pr-str @pressed-keys))))))))
+
+      (let [state @state-atom]
+        (animation/swap-state! animation/set-wake-up 500)
+        @animation/state-atom
+        (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
+                             (layouts/center
+                              (layouts/vertically-2
+                               {:margin 10}
+                               (layouts/superimpose
+                                (stave (->> @notes
+                                            (drop-while (fn [note]
+                                                          (< (:start note)
+                                                             (* 4 (:start state)))))
+                                            (take-while (fn [note]
+                                                          (< (:start note)
+                                                             (* 4 (+ (:start state)
+                                                                     6))))))
+                                       #_(for [n (range 8)]
+                                           (let [note (note-in-scale 0 major n)]
+                                             {:pitch note
+                                              :number-in-scale (inc (mod n 7))
+                                              :start (* 2 n)
+                                              :duration 2})))
+                                (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
+                                       :x (* (+ (:play-head-position state)
+                                                (if (:playing? state)
+                                                  (beat-time-now (:play-start-time state)
+                                                                 (:beats-per-minute state))
+                                                  0))
+                                             (* sexteenth-note-width 4))
+                                       :width 4
+                                       :height (* 20 line-gap)))
+                               #_(text (pr-str @pressed-keys))))
+                             )))))
 
 (declare event-channel)
 
@@ -514,6 +765,8 @@
   (def event-channel (application/start-window #'base-view)))
 
 (defn handle-midi-message [midi-message]
+  (prn midi-message) ;; TODO: remove-me
+
   (cond (= :note-on (:command midi-message))
         (do
           (swap! pressed-keys conj (:note midi-message))
@@ -539,18 +792,32 @@
 
 (comment
 
-  (midi/midi-handle-events (midi/midi-in "Launchpad X LPX MIDI Out")
+  (do (println (.ntpValue (TimeStamp/getNtpTime (long (+ 100 (live/now))))))
+      (println (.ntpValue (TimeStamp/getCurrentTime))))
+  ;; => -1931497290938858865
+
+  ;; => -1931497286403373401
+
+  (.getNtpTime (TimeStamp/getCurrentTime)
+               (long (live/now)))
+  ;; => 1636264359068
+  ;; => 1636264351156
+  (live/now)
+  ;; => 1636264362092;; => 1636264349229
+  (midi/midi-handle-events (midi/midi-in  "Launchpad X LPX MIDI Out")
                            #'handle-midi-message)
 
   (do (reset! notes
-              (->> (tracks "/Users/jukka/Downloads/tassako_taa_oli.mid"
-                           #_"/Users/jukka/Downloads/Believer_-_Imagine_Dragons_Advanced.mid"
+              (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
+                           "/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
                            #_"/Users/jukka/google-drive/jukka/music/testi.mid")
                    (drop 0)
                    (first)
                    #_(map (partial quantisize-note
                                    (/ 1 8)))))
       nil)
+
+
 
   (note-index-to-name (best-fitting-root-index minor
                                                #_major

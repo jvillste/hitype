@@ -485,6 +485,11 @@
                                    (kuva "hero-tiles/gray-heart.png" 100 100))))))
   )
 
+(defn kertotaulu [numero]
+  (for [x (range 1 11)]
+    {:kysymys (str x " x " numero)
+     :vastaus (* x numero)}))
+
 (def kysymykset [
                  {:kysymys "2 * 2", :vastaus "4", :luokka :kertolasku}
                  {:kysymys "2 * 3", :vastaus "6", :luokka :kertolasku}
@@ -702,23 +707,24 @@
                      (lokita! tila :näytettiin-kysymys))
 
             :alkuarvo
-            (let [kysymykset (set/union (set (->> (osaamiset @log
-                                                             kysymykset)
-                                                  (shuffle)
-                                                  (remove (fn [tulos]
-                                                            (= :lumo (-> tulos :kysymys :luokka))))
-                                                  (filter (fn [tulos]
-                                                            (< (:osaaminen tulos) 0.7)))
+            (let [kysymykset (kertotaulu 7)
+                  #_(set/union (set (->> (osaamiset @log
+                                                                kysymykset)
+                                                     (shuffle)
+                                                     (remove (fn [tulos]
+                                                               (= :lumo (-> tulos :kysymys :luokka))))
+                                                     (filter (fn [tulos]
+                                                               (< (:osaaminen tulos) 0.7)))
 
-                                                  (map :kysymys)
-                                                  (take 6))
-                                             #_kysymykset
-                                             #_(take 3 kysymykset))
-                                        #_(set (->> (osaamiset @log
-                                                               kysymykset)
-                                                    (filter (fn [tulos]
-                                                              (= :lumo (-> tulos :kysymys :luokka))))
-                                                    (map :kysymys))))]
+                                                     (map :kysymys)
+                                                     (take 6))
+                                                #_kysymykset
+                                                #_(take 3 kysymykset))
+                                           #_(set (->> (osaamiset @log
+                                                                  kysymykset)
+                                                       (filter (fn [tulos]
+                                                                 (= :lumo (-> tulos :kysymys :luokka))))
+                                                       (map :kysymys))))]
               {:jäljellä-olevat-kysymykset kysymykset
                :seuraava-kysymys (rand-nth (vec kysymykset))
                :tila :kysymys})
