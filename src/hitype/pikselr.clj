@@ -70,6 +70,18 @@
 (defn handle-keyboard-event [state-atom event]
   (#'handle-keyboard-event2 state-atom event))
 
+(defn add-vectors [vector-a vector-b]
+  {:x (+ (:x vector-a)
+         (:x vector-b))
+   :y (+ (:y vector-a)
+         (:y vector-b))})
+
+(defn substract-vectors [vector-a vector-b]
+  {:x (- (:x vector-a)
+         (:x vector-b))
+   :y (- (:y vector-a)
+         (:y vector-b))})
+
 (defn handle-mouse-event [state-atom _node event]
   (when (:x event)
     (let [state @state-atom]
@@ -88,30 +100,21 @@
                             (swap! state-atom
                                    assoc
                                    :canvas-offset
-                                   {:x (+ (:x (:canvas-offset @state-atom))
-                                          (:x (:canvas-drag-offset @state-atom)))
-                                    :y (+ (:y (:canvas-offset @state-atom))
-                                          (:y (:canvas-drag-offset @state-atom)))}
+                                   (add-vectors (:canvas-offset @state-atom)
+                                                (:canvas-drag-offset @state-atom))
                                    :canvas-drag-offset {:x 0 :y 0}))
                           (swap! state-atom
                                  dissoc
                                  :drag-start))
 
-        :mouse-moved (do
-                       (prn (contains? (:keys-down @state-atom)
-                                       :space)
-                            (:drag-start state)) ;; TODO: remove-me
-
-                       (when (and (contains? (:keys-down @state-atom)
-                                             :space)
-                                  (:drag-start state))
-                         (swap! state-atom
-                                assoc
-                                :canvas-drag-offset
-                                {:x (- (:x event)
-                                       (:x (:drag-start state)))
-                                 :y (- (:y event)
-                                       (:y (:drag-start state)))})))
+        :mouse-moved (when (and (contains? (:keys-down @state-atom)
+                                           :space)
+                                (:drag-start state))
+                       (swap! state-atom
+                              assoc
+                              :canvas-drag-offset
+                              (substract-vectors event
+                                                 (:drag-start state))))
         nil)))
   #_(prn (dissoc event :nodes-under-mouse))
   event)
@@ -149,7 +152,7 @@
                                     :y (-> state :pointer :y)
                                     :width (/ (:scale state) 2)
                                     :height (/ (:scale state) 2))
-                             (text (pr-str state) 20 [2 #_55 255 255 255]))
+                             (text (pr-str state) 20 [2 255 255 255]))
         (assoc :mouse-event-handler [handle-mouse-event state-atom]))))
 
 (defn base-view []
@@ -157,7 +160,7 @@
                                           :keys-down #{}
                                           :pointer {:x 0 :y 0}
                                           :canvas-offset {:x 0 :y 0}
-                                          :canvas-drag-offset {:x 0 :y 0} 
+                                          :canvas-drag-offset {:x 0 :y 0}
                                           :color [100 100 0 255]})]
     (keyboard/set-focused-event-handler! (partial handle-keyboard-event
                                                   state-atom))
