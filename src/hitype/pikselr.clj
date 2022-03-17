@@ -26,6 +26,18 @@
     (throw (ex-info (str "Tiedostoa " file-name " ei löydy")
                     {}))))
 
+(defn add-vectors [vector-a vector-b]
+  {:x (+ (:x vector-a)
+         (:x vector-b))
+   :y (+ (:y vector-a)
+         (:y vector-b))})
+
+(defn substract-vectors [vector-a vector-b]
+  {:x (- (:x vector-a)
+         (:x vector-b))
+   :y (- (:y vector-a)
+         (:y vector-b))})
+
 (defonce image (buffered-image/create-from-file "/Users/jukka/google-drive/jukka/gfx/Made_AmigaGFX_DemosceneArchive/Made - Sun Flower (28-08-1997).png"))
 
 (def cursor-image (buffered-image/create 16 16))
@@ -42,8 +54,6 @@
                          [0 0 0 255])
                        (visuals/liberation-sans-regular (or size 50))))
 
-
-
 (defn view []
   (layouts/superimpose (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
                               :x 10
@@ -53,34 +63,22 @@
 
 (defn handle-keyboard-event2 [state-atom event]
   #_(prn event)
+  (let [state @state-atom]
+    (case (:type event)
+      :key-pressed
+      (do (case (:key event)
+            :1 (swap! state-atom assoc :scale 5)
+            :2 (swap! state-atom assoc :scale 20)
+            nil)
 
-  (case (:type event)
-    :key-pressed
-    (do (case (:key event)
-          :1 (swap! state-atom assoc :scale 5)
-          :2 (swap! state-atom assoc :scale 20)
-          nil)
+          (swap! state-atom update :keys-down conj (:key event)))
+      :key-released
+      (swap! state-atom update :keys-down disj (:key event))
 
-        (swap! state-atom update :keys-down conj (:key event)))
-    :key-released
-    (swap! state-atom update :keys-down disj (:key event))
-
-    nil))
+      nil)))
 
 (defn handle-keyboard-event [state-atom event]
   (#'handle-keyboard-event2 state-atom event))
-
-(defn add-vectors [vector-a vector-b]
-  {:x (+ (:x vector-a)
-         (:x vector-b))
-   :y (+ (:y vector-a)
-         (:y vector-b))})
-
-(defn substract-vectors [vector-a vector-b]
-  {:x (- (:x vector-a)
-         (:x vector-b))
-   :y (- (:y vector-a)
-         (:y vector-b))})
 
 (defn handle-mouse-event [state-atom _node event]
   (when (:x event)
