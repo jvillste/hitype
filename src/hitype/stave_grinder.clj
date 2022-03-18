@@ -220,7 +220,7 @@
 (defn line [pitch]
   (layouts/superimpose (let [number-in-row (mod pitch 5)
                              fat? (contains? ;;  #{ 1 2 3 4 }
-                                    #{ 1  3 4 }
+                                   #{ 1 3 4 }
                                    number-in-row)
                              shaded-background? (in-scale? major pitch)
                              #_(contains? #{1}
@@ -248,47 +248,6 @@
                                                                      255])
                                    :height line-gap))))))
 
-(defn row []
-  (layouts/superimpose (assoc (visuals/rectangle-2 :fill-color [255 255 255 0])
-                              :height row-height
-                              :width (* 16 sexteenth-note-width))
-                       (for [x (range 0 5)]
-                         (let [fat? (contains? #{4}
-                                               x)
-                               shaded-background? (contains? #{1}
-                                                             #_#{0 2}
-                                                             x)
-                               line-width (if fat?
-                                            (* 2 line-width)
-                                            line-width)]
-                           (layouts/superimpose
-                            (assoc (visuals/rectangle-2 :fill-color (if fat?
-                                                                      [0 0 0 255]
-                                                                      [gray-line-shade
-                                                                       gray-line-shade
-                                                                       gray-line-shade
-                                                                       255]))
-                                   :y (- (* x line-gap)
-                                         (/ line-width 2))
-                                   :width (* sexteenth-note-width 16)
-                                   :height line-width)
-                            (when shaded-background?
-                              (assoc (visuals/rectangle-2 :fill-color [middle-finger-shade
-                                                                       middle-finger-shade
-                                                                       middle-finger-shade
-                                                                       255])
-                                     :y (* x line-gap)
-                                     :width (* sexteenth-note-width 16)
-                                     :height line-gap)))))
-
-                       #_(assoc (visuals/rectangle-2 :fill-color [0 0 0 255])
-                                :width (* sexteenth-note-width 16)
-                                :height (* 2 line-width)
-                                :y (- (* 4 line-gap)
-                                      line-width))))
-
-
-
 (defn quantisize [resolution length]
   (* resolution
      (Math/round
@@ -307,16 +266,17 @@
 
 (defn note-view [note]
   (assoc (visuals/rectangle-2 :fill-color (if (= 1 (:number-in-scale note))
-                                            [100 100 100 255]
+                                            [200 100 100 255]
                                             [0 0 0 255]))
          :x (* (:start note)
                (* 4 sexteenth-note-width))
          :y (- (* (- (:pitch note)
                      middle-c)
                   line-gap))
-         :width (* (- (:end note)
-                      (:start note))
-                   (* 4 sexteenth-note-width))
+         :width (- (* (- (:end note)
+                           (:start note))
+                      (* 4 sexteenth-note-width))
+                   2)
          :height line-gap))
 
 
@@ -395,20 +355,22 @@
 
   )
 
-(defonce notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
-                                                  "/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
-                                                  #_"/Users/jukka/google-drive/jukka/music/testi.mid")
-                                          (drop 0)
-                                          (first)
-                                          #_(map (partial quantisize-note
-                                                          (/ 1 8))))))
+(def notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
+                                              "/Users/jukka/Downloads/IRON_MAN_02.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/testi.mid")
+                                      (drop 0)
+                                      (first)
+                                      #_(map (partial quantisize-note
+                                                      (/ 1 8))))))
 
-(defonce channel (let [synthesizer (MidiSystem/getSynthesizer)]
-                   (.open synthesizer)
-                   (let [instruments (.getInstruments (.getDefaultSoundbank synthesizer))]
-                     (.loadInstrument synthesizer
-                                      (first instruments))
-                     (first (.getChannels synthesizer)))))
+(defonce channel
+  (let [synthesizer (MidiSystem/getSynthesizer)]
+    (.open synthesizer)
+    (let [instruments (.getInstruments (.getDefaultSoundbank synthesizer))]
+      (.loadInstrument synthesizer
+                       (first instruments))
+      (first (.getChannels synthesizer)))))
 
 (comment
   (midi/midi-handle-events (midi/midi-in  "Launchpad X LPX MIDI Out")
@@ -492,9 +454,9 @@
 
 (defn- beat-time-now [play-start-time beats-per-minute]
   (float (* (/ (- (System/currentTimeMillis)
-                                        play-start-time)
-                                     1000 60)
-                                  beats-per-minute)))
+                  play-start-time)
+               1000 60)
+            beats-per-minute)))
 
 (defn play-notes [beats-per-minute start-time end-time notes]
   (let [notes-by-bar (notes-by-bar notes)
@@ -509,7 +471,7 @@
     ;; (prn 'last-bar last-bar) ;; TODO: remove-me
     ;; (prn 'start-time start-time) ;; TODO: remove-me
     ;; (prn 'stop-atom stop-atom) ;; TODO: remove-me
- 
+
     (.start (Thread. (fn []
                        (while (and (not @stop-atom)
                                    (>= end-time
@@ -566,13 +528,15 @@
     (reset! (:stop-atom state)
             true)))
 
-(defn handle-keyboard-event2 [state-atom event]
+(defn handle-keyboard-event [state-atom _scene-graph event]
+
+
   (when (= :key-pressed (:type event))
     (cond (= :right (:key event))
-          (swap! state-atom update :start inc)
+          (swap! state-atom update :first-bar-in-view inc)
 
           (= :left (:key event))
-          (swap! state-atom update :start dec)
+          (swap! state-atom update :first-bar-in-view dec)
 
           (= :enter (:key event))
           (do (stop-playing state-atom)
@@ -591,8 +555,14 @@
               (stop-playing state-atom)
 
               (let [stop-atom (play-notes (:beats-per-minute state)
-                                          (:play-head-position state)
-                                          (+ (:play-head-position state) 3)
+                                          (+ (:play-head-position state)
+                                             (* 4 (:first-bar-in-view state)))
+                                          (+ (:play-head-position state)
+                                             (* 4 (+ 6 (:first-bar-in-view state))))
+
+                                          ;; (:play-head-position state)
+                                          ;; (+ (:play-head-position state)
+                                          ;;    3)
                                           @notes)]
                 (swap! state-atom assoc
                        :stop-atom stop-atom
@@ -600,7 +570,7 @@
                        :play-start-time (System/currentTimeMillis)))))
           )))
 
-(defn handle-keyboard-event [state-atom _scene-graph event]
+#_(defn handle-keyboard-event [state-atom _scene-graph event]
   (#'handle-keyboard-event2 state-atom event))
 
 (defn note-number [x y]
@@ -624,55 +594,62 @@
                       :width grid-size
                       :height grid-size))))))
 
-(defn base-view []
-  (let [state-atom (dependable-atom/atom {:start 0
-                                          :play-head-position 1.3
+
+
+(defn base-view [state-atom]
+  (let [state @state-atom]
+    (when (:playing? state)
+      (animation/swap-state! animation/set-wake-up 1)
+      @animation/state-atom)
+
+    (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
+                         (layouts/vertically-2
+                          {:margin 10}
+                          (layouts/superimpose
+                           (stave (->> @notes
+                                       (drop-while (fn [note]
+                                                     (< (:start note)
+                                                        (* 4 (:first-bar-in-view state)))))
+                                       (take-while (fn [note]
+                                                     (< (:start note)
+                                                        (* 4 (+ (:first-bar-in-view state)
+                                                                6))))))
+                                  #_(for [n (range 8)]
+                                      (let [note (note-in-scale 0 major n)]
+                                        {:pitch note
+                                         :number-in-scale (inc (mod n 7))
+                                         :start (* 2 n)
+                                         :duration 2})))
+                           (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
+                                  :x (* (+ (:play-head-position state)
+                                           (if (:playing? state)
+                                             (beat-time-now (:play-start-time state)
+                                                            (:beats-per-minute state))
+                                             0))
+                                        (* sexteenth-note-width 4))
+                                  :width 4
+                                  :height (* 50 line-gap)))
+                          #_(text (pr-str @pressed-keys))))))
+
+(defn ui []
+  (let [state-atom (dependable-atom/atom {:first-bar-in-view 0
+                                          :play-head-position 1
                                           :beats-per-minute 60})]
-    (keyboard/set-focused-event-handler! (partial handle-keyboard-event
-                                                  state-atom))
+    (keyboard/set-focused-event-handler! [#'handle-keyboard-event state-atom])
     (fn []
+      (#'base-view state-atom))))
 
-      (let [state @state-atom]
-        (animation/swap-state! animation/set-wake-up 500)
-        @animation/state-atom
-        (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
-                             (layouts/vertically-2
-                              {:margin 10}
-                              (layouts/superimpose
-                               (stave (->> @notes
-                                           (drop-while (fn [note]
-                                                         (< (:start note)
-                                                            (* 4 (:start state)))))
-                                           (take-while (fn [note]
-                                                         (< (:start note)
-                                                            (* 4 (+ (:start state)
-                                                                    6))))))
-                                      #_(for [n (range 8)]
-                                          (let [note (note-in-scale 0 major n)]
-                                            {:pitch note
-                                             :number-in-scale (inc (mod n 7))
-                                             :start (* 2 n)
-                                             :duration 2})))
-                                (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
-                                      :x (* (+ (:play-head-position state)
-                                               (if (:playing? state)
-                                                 (beat-time-now (:play-start-time state)
-                                                                (:beats-per-minute state))
-                                                 0))
-                                            (* sexteenth-note-width 4))
-                                      :width 4
-                                      :height (* 20 line-gap)))
-                              #_(text (pr-str @pressed-keys)))
-                             )))))
-
-(declare event-channel)
+(defonce event-channel-atom (atom nil))
 
 (defn start []
   (prn "----------------") ;; TODO: remove-me
 
-  (def event-channel (application/start-window #'base-view)))
+  (reset! event-channel-atom (application/start-window #'ui
+                                                       :on-exit #(reset! event-channel-atom nil))))
 
 
+(when @event-channel-atom
+  (async/>!! @event-channel-atom {:type :redraw}))
 
 (comment
   (.getLatency (MidiSystem/getSynthesizer))
@@ -683,21 +660,21 @@
 
   (cond (= :note-on (:command midi-message))
         (do
-          (prn 'on
-               (:note midi-message)
-               (:velocity midi-message)) ;; TODO: remove-me
+          #_(prn 'on
+                 (:note midi-message)
+                 (:velocity midi-message)) ;; TODO: remove-me
 
           ;; (.noteOn channel
           ;;          (:note midi-message)
           ;;          (:velocity midi-message))
           (swap! pressed-keys conj (:note midi-message))
-          (async/>!! event-channel {:type :repaint}))
+          (async/>!! @event-channel-atom {:type :redraw}))
 
         (= :note-off (:command midi-message))
         (do ;; (.noteOff channel
-            ;;           (:note midi-message))
-            (swap! pressed-keys disj (:note midi-message))
-            (async/>!! event-channel {:type :repaint}))))
+          ;;           (:note midi-message))
+          (swap! pressed-keys disj (:note midi-message))
+          (async/>!! @event-channel-atom {:type :redraw}))))
 
 (defn best-fitting-root-index [scale notes]
   (->> (for [root-index (range 12)]
