@@ -1,26 +1,11 @@
 (ns hitype.tekstiseikkailu
-  (:require [clojure.string :as string]
-            [clojure.test :refer :all]
-            [flow-gl.gui.animation :as animation]
-            [flow-gl.gui.visuals :as visuals]
-            [fungl.application :as application]
-            [fungl.layouts :as layouts]
-            [clojure.java.io :as io]
-            [flow-gl.graphics.buffered-image :as buffered-image]
-            [flow-gl.graphics.buffered-image :as buffered-image]
-            [fungl.component.text-area :as text-area]
-            [fungl.dependable-atom :as dependable-atom]
-            [fungl.util :as util]
-            [hitype.util :as hitype-util]
-            [flow-gl.gui.keyboard :as keyboard]
-            [fungl.cache :as cache]
-            [java-time :as java-time]
-            [time-literals.data-readers :as data-readers]
-            [time-literals.read-write :as read-write]
-            [clojure.test :refer :all]
-            [clojure.set :as set]
-            [medley.core :as medley]))
-
+  (:require
+   [clojure.test :refer :all]
+   [flow-gl.gui.animation :as animation]
+   [flow-gl.gui.keyboard :as keyboard]
+   [flow-gl.gui.visuals :as visuals]
+   [fungl.application :as application]
+   [fungl.layouts :as layouts]))
 
 (defn ^:dynamic  onnistuiko? [todennäköisyys]
   (<= (rand)
@@ -40,6 +25,15 @@
       (assoc :kokemuspisteiden-lisäys määrä)
       (update :kokemuspisteet (partial + määrä))))
 
+(def maksimienergia 15)
+
+(defn lisää-energiaa [maailma energiamäärä]
+  (-> maailma
+      (update :energia (fn [energia]
+                         (min maksimienergia
+                              (+ energia energiamäärä))))
+      (assoc :energian-muutos energiamäärä)))
+
 (def etsi-avain-ja-kolikko {:tunnus :etsi-avain-ja-kolikko
                             :kuvaus "Etsi kultainen avain ja kolikko"
                             :toteutus (fn [maailma]
@@ -51,8 +45,8 @@
                                                 (poista-tämä-komento))
                                             (-> maailma
                                                 (assoc :tapahtuman-kuvaus "Löysit kultakolikon ja avaimen ja laitoit ne taskuun.")
-                                                (update-in [:tavarat] concat [{:nimi "Kultakolikko"}
-                                                                              {:nimi "Kulta-avain"}])
+                                                (update-in [:tavarat] concat [{:nimi "Kultakolikko" :id :kultakolikko}
+                                                                              {:nimi "Kulta-avain" :id :kulta-avain}])
                                                 (assoc-in [:paikat :olohuone :avain-ja-kolikkko-on-löydetty] true)
                                                 (lisää-kokemusta 10)
                                                 (poista-tämä-komento)))))})
@@ -81,6 +75,38 @@
                                          (assoc :tapahtuman-kuvaus "Pullo ei pysynyt pystyssä.")
                                          (lisää-kokemusta 1))))})
 
+(def taistele-zombin-kanssa {:tunnus :taistele-zombin-kanssa
+                             :kuvaus "Taistele zombin kanssa."
+                             :voiko-tehdä? (fn [maailma]
+                                             (not (:zombi-on-ystävä maailma)))
+                             :toteutus (fn [maailma]
+                                         (if (onnistuiko? 0.3)
+                                           (-> maailma
+                                               (assoc :tapahtuman-kuvaus "Onnistuit tappamaan zombin!")
+                                               (lisää-kokemusta 20))
+                                           (-> maailma
+                                               (assoc :tapahtuman-kuvaus "Zombi löi sinua.")
+                                               (lisää-energiaa -1))))})
+
+(def anna-zombille-kultakolikko {:tunnus :anna-zombille-kultakolikko
+                                 :kuvaus "Anna zombille kultakolikko"
+                                 :voiko-tehdä? (fn [maailma]
+                                                 (some (fn [tavara]
+                                                         (= :kultakolikko
+                                                            (:id tavara)))
+                                                       (:tavarat maailma)))
+                                 :toteutus (fn [maailma]
+                                             (-> maailma
+                                                 (assoc :tapahtuman-kuvaus "Annoit zombille kultakolikon, ja hänestä tuli sinun uusi ystäväsi!")
+                                                 (assoc :zombi-on-ystävä true)
+                                                 (update :tavarat
+                                                         (fn [tavarat]
+                                                           (remove (fn [tavara]
+                                                                     (= :kultakolikko
+                                                                        (:id tavara)))
+                                                                   tavarat)))
+                                                 (lisää-kokemusta 40)))})
+
 (def istuta-porkkanoita {:tunnus :istuta-porkkanoita
                          :kuvaus "Istuta porkkanoita"
                          :toteutus (fn [maailma]
@@ -90,13 +116,6 @@
                                          (assoc :tapahtuman-kuvaus "Istutit porkkanat")
                                          (poista-komento :takapiha :istuta-porkkanoita)))})
 
-(def maksimienergia 15)
-
-(defn lisää-energiaa [maailma energiamäärä]
-  (update maailma :energia (fn [energia]
-                             (min maksimienergia
-                                  (+ energia energiamäärä)))))
-
 (def syö-porkkanat {:tunnus :syö-porkkanat
                     :kuvaus "Syö porkkanat"
                     :toteutus (fn [maailma]
@@ -104,7 +123,8 @@
                                     (assoc-in [:paikat :takapiha :porkkanoidenistutusvuoro]
                                               nil)
                                     (assoc :tapahtuman-kuvaus "Söit porkkanat")
-                                    (lisää-energiaa (int (/ maksimienergia 2)))
+                                    (lisää-energiaa (- maksimienergia
+                                                       (:energia maailma)))
                                     (poista-komento :takapiha :syö-porkkanat)
                                     (update-in [:paikat :takapiha :komennot] conj istuta-porkkanoita)
                                     (lisää-kokemusta 20)))})
@@ -137,10 +157,22 @@
                         }
              :keittiö {:nimi "Keittiö"
                        :menonimi "keittiöön"
-                       :kuvaus "Täällä on pöytä jolla on whattaswippipullo."
+                       :kuvaus "Täällä on pöytä jolla on whattaswippipullo. Täällä on kellarin ovi."
                        :komennot [heitä-whattaswip
+                                  (menokomento :kellari)
                                   (menokomento :olohuone)
                                   (menokomento :takapiha)]}
+
+             :kellari {:nimi "Kellari"
+                       :menonimi "kellariin"
+                       :kuvausfunktio (fn [maailma]
+                                        (if (:zombi-on-ystävä maailma)
+                                          "Täällä on zombi joka on ystäväsi."
+                                          "Täällä on vaarallinen zombi."))
+                       :komennot [taistele-zombin-kanssa
+                                  anna-zombille-kultakolikko
+                                  (menokomento :keittiö)]}
+
              :takapiha {:nimi "Takapiha"
                         :menonimi "takapihalle"
                         :kuvausfunktio (fn [maailma]
@@ -199,9 +231,13 @@
     (if (:peli-on-lopetettu maailma)
       [{:tunnus :aloita
         :kuvaus "Aloita uusi peli"
-        :toteutus (fn [maailma]
+        :toteutus (fn [_maailma]
                     (alusta-maailma))}]
-      (concat (:komennot paikka)
+      (concat (filter (fn [komento]
+                        (if-let [voiko-tehdä? (:voiko-tehdä? komento)]
+                          (voiko-tehdä? maailma)
+                          true))
+                      (:komennot paikka))
               #_(for [paikan-tunnus (:exits paikka)]
                 (let [menonimi (get-in maailma [paikan-tunnus :menonimi])]
                   {:tunnus [:mene paikan-tunnus]
@@ -227,7 +263,9 @@
           (keys (:paikat maailma))))
 
 (defn valmistaudu-komentoon [maailma]
-  (assoc maailma :kokemuspisteiden-lisäys nil))
+  (dissoc maailma
+          :kokemuspisteiden-lisäys
+          :energian-muutos))
 
 (defn lopeta-jos-kokemusta-on-riittävästi [maailma]
   (if (>= (:kokemuspisteet maailma)
@@ -337,37 +375,42 @@
 
 (defn world-view [maailma]
   (let [paikka (pelaajan-paikka maailma)]
-    (layouts/with-margins 20 20 20 20
-      (apply layouts/vertically-2 {:margin 10 :centered true}
-             (if (:peli-on-lopetettu maailma)
-               [(layouts/vertically-2 {:margin 10}
-                                      (tapahtuman-kuvaus (:lopetusviesti maailma))
-                                      (tapahtuman-kuvaus (str "Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) " pelivuorossa!"))
-                                      (tapahtuman-kuvaus (str "Se on " (int (/ (:kokemuspisteet maailma)
-                                                                               (dec (:pelivuoro maailma)))) " pistettä per vuoro.")))
-                (komentonäkymä maailma)]
-               [(teksti (:nimi paikka) (* 2 tekstin-koko))
-                (layouts/vertically-2 {:margin 10}
-                                      (tapahtuman-kuvaus (:tapahtuman-kuvaus maailma))
-                                      (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
-                                        (tapahtuman-kuvaus (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")))
-                                      (teksti (paikan-kuvaus maailma)))
-                (if (not (empty? (:tavarat maailma)))
-                  (layouts/vertically-2 {}
-                                        (teksti "Sinulla on:" (* 1.5 tekstin-koko))
-                                        (for [tavara (:tavarat maailma)]
-                                          (layouts/with-margins 0 0 0 20
-                                            (teksti (:nimi tavara)))))
-                  nil)
-                (komentonäkymä maailma)
-                (teksti (str "Kokemuspisteet: " (:kokemuspisteet maailma)))
-                (teksti (str "Energia: " (:energia maailma)))
-                (teksti (str "Pelivuoro: "(:pelivuoro maailma)))])))))
+    (layouts/with-maximum-size 500 nil
+      (layouts/with-margins 20 20 20 20
+        (apply layouts/vertically-2 {:margin 10 :centered true}
+               (if (:peli-on-lopetettu maailma)
+                 [(layouts/vertically-2 {:margin 10}
+                                        (tapahtuman-kuvaus (:lopetusviesti maailma))
+                                        (tapahtuman-kuvaus (str "Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) " pelivuorossa!"))
+                                        (tapahtuman-kuvaus (str "Se on " (int (/ (:kokemuspisteet maailma)
+                                                                                 (dec (:pelivuoro maailma)))) " pistettä per vuoro.")))
+                  (komentonäkymä maailma)]
+                 [(teksti (:nimi paikka) (* 2 tekstin-koko))
+                  (layouts/vertically-2 {:margin 10}
+                                        (tapahtuman-kuvaus (:tapahtuman-kuvaus maailma))
+                                        (when-let [kokemuspisteiden-lisäys (:kokemuspisteiden-lisäys maailma)]
+                                          (tapahtuman-kuvaus (str "Sait " kokemuspisteiden-lisäys " pistettä lisää kokemusta!")))
+                                        (when-let [energian-muutos (:energian-muutos maailma)]
+                                          (if (< energian-muutos 0)
+                                            (tapahtuman-kuvaus (str "Menetit " energian-muutos " pistettä energiaa!"))
+                                            (tapahtuman-kuvaus (str "Sait " energian-muutos " pistettä lisää energiaa!"))))
+                                        (teksti (paikan-kuvaus maailma)))
+                  (if (not (empty? (:tavarat maailma)))
+                    (layouts/vertically-2 {}
+                                          (teksti "Sinulla on:" (* 1.5 tekstin-koko))
+                                          (for [tavara (:tavarat maailma)]
+                                            (layouts/with-margins 0 0 0 20
+                                              (teksti (:nimi tavara)))))
+                    nil)
+                  (komentonäkymä maailma)
+                  (teksti (str "Kokemuspisteet: " (:kokemuspisteet maailma)))
+                  (teksti (str "Energia: " (:energia maailma)))
+                  (teksti (str "Pelivuoro: "(:pelivuoro maailma)))]))))))
 
 
 
 
-(defn näppäimistökäsittelijä [state-atom event]
+(defn näppäimistökäsittelijä [state-atom _node event]
   (when (= :key-released (:type event))
     (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
                             (str (:character event)))]
