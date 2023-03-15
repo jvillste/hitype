@@ -254,7 +254,7 @@
 (defn start []
   (prn "----------") ;; TODO: remove-me
 
-  (application/start-window view-constructor))
+  (application/start-application view-constructor))
 
 
 (comment

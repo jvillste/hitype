@@ -80,7 +80,7 @@
                              :voiko-tehdä? (fn [maailma]
                                              (not (:zombi-on-ystävä maailma)))
                              :toteutus (fn [maailma]
-                                         (if (onnistuiko? 0.3)
+                                         (if (onnistuiko? 0.2)
                                            (-> maailma
                                                (assoc :tapahtuman-kuvaus "Onnistuit tappamaan zombin!")
                                                (lisää-kokemusta 20))
@@ -129,7 +129,7 @@
                                     (update-in [:paikat :takapiha :komennot] conj istuta-porkkanoita)
                                     (lisää-kokemusta 20)))})
 
-(def porkkanoiden-kypsymisaika 5)
+(def porkkanoiden-kypsymisaika 4)
 
 (defn porkkanoiden-ikä [maailma]
   (when-let [istutus-vuoro (get-in maailma [:paikat :takapiha :porkkanoidenistutusvuoro])]
@@ -419,8 +419,8 @@
 (defn root-view []
   (let [state-atom (atom (alusta-maailma))]
     (fn []
-      (animation/swap-state! animation/set-wake-up 1000)
-      @animation/state-atom
+      ;; (animation/swap-state! animation/set-wake-up 1000)
+      ;; @animation/state-atom
       (keyboard/set-focused-event-handler! (partial näppäimistökäsittelijä
                                                     state-atom))
       (world-view @state-atom))))

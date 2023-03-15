@@ -9,7 +9,12 @@
             [flow-gl.graphics.buffered-image :as buffered-image]
             [fungl.dependable-atom :as dependable-atom]
             [flow-gl.gui.keyboard :as keyboard]
-            [fungl.view-compiler :as view-compiler]))
+            [fungl.view-compiler :as view-compiler]
+            [clojure.test :refer [deftest]]
+            [clojure.test :refer [is]]
+            [clojure.string :as string])
+  (:import java.io.BufferedReader
+           java.io.StringReader))
 
 (defn load-image [file-name]
   (if-let [resource (io/resource file-name)]
@@ -269,3 +274,133 @@
   (repeat 10
         (str "Moi " (read-line)))
   ) ;; TODO: remove-me
+
+
+(defn readout-to-pairs [read-out]
+  (let [lines (->> (io/reader (BufferedReader. (StringReader. read-out)))
+                   (line-seq)
+                   (remove #{""}))
+        pair-count (/ (count lines)
+                      2)]
+    (mapcat vector
+            (->> lines
+                 (take pair-count))
+            (->> lines
+                 (drop pair-count)))))
+
+
+
+(deftest test-readout-to-pairs
+  (is (= ["en 1" "fi 1" "en 2" "fi 2"]
+         (readout-to-pairs "en 1
+
+(defn print-pairs [pairs]
+  (doseq [[first second] (partition 2 pairs)]
+    (prn first second)))
+
+en 2
+
+fi 1
+fi 2"))))
+
+(comment
+  (print-pairs (readout-to-pairs "When is your birthday?
+It's in June.
+What can you do in the summer?
+I can swim.
+
+Milloin on sinun syntymäpaiväsi?
+Se on kesakuussa.
+Mitä voit tehda kesälla?
+Mina voin uida."))
+  ) ;; TODO: remove me
+
+
+(defn readout-to-pairs [read-out]
+  (let [lines (->> (io/reader (BufferedReader. (StringReader. read-out)))
+                   (line-seq)
+                   (remove #{""}))
+        pair-count (/ (count lines)
+                      2)]
+    (mapcat vector
+            (->> lines
+                 (take pair-count))
+            (->> lines
+                 (drop pair-count)))))
+
+(deftest test-readout-to-pairs
+  (is (= ["en 1" "fi 1" "en 2" "fi 2"]
+         (readout-to-pairs "en 1
+en 2
+
+fi 1
+fi 2"))))
+
+(defn print-pairs [pairs]
+  (doseq [[first second] (partition 2 pairs)]
+    (prn first second)))
+
+(let [text ""]
+  (print-pairs (->> (io/reader (BufferedReader. (StringReader. text)))
+                    (line-seq)
+                    (remove #{""})
+                    (partition 2)
+                    (mapcat reverse)))
+  )
+
+(defn käännä-toisin-päin [kysymys]
+  {:kysymys (:vastaus kysymys)
+   :vastaus (:kysymys kysymys)})
+
+(defn sanakysymykset [kysymykset]
+  (into #{}
+        (concat kysymykset
+                (map käännä-toisin-päin
+                     kysymykset))))
+
+(defn kysymys [kysymys vastaus]
+  {:kysymys kysymys
+   :vastaus vastaus})
+
+(defn kysymykset [& kysymys-vastaus-parit]
+  (->> kysymys-vastaus-parit
+       (partition 2)
+       (map (fn [[kysymys vastaus]]
+              {:kysymys kysymys
+               :vastaus vastaus}))))
+
+(deftest test-kysymykset
+  (is (= '({:kysymys "kysymys", :vastaus "vastaus"})
+         (kysymykset "kysymys" "vastaus"))))
+
+(def cards "Whose?;Kenen?
+my;minun
+your;sinun
+his;hänen (pojasta)
+her;hänen (tytöstä)
+its;sen
+our;meidän
+your;teidän
+their;heidän, niiden
+who?;kuka?
+I;minä
+you;sinä
+he;hän (pojasta)
+she;hän (tytöstä)
+it;se
+we;me
+you;te
+they;he,ne")
+
+(comment
+  (doseq [card-set (->> (io/reader (BufferedReader. (StringReader. cards)))
+                        (line-seq)
+                        (map #(string/split % #";"))
+                        (mapcat (fn [[question answer]]
+                                  [[question answer]
+                                   [answer question]]))
+                        (partition 10))]
+    (println)
+    (doseq [[question answer] card-set]
+      (println (str question ";" answer))))
+  ) ;; TODO: remove me

@@ -6,7 +6,7 @@
             [clojure.java.io :as io]
             [flow-gl.graphics.buffered-image :as buffered-image]
             [flow-gl.graphics.buffered-image :as buffered-image]
-            [fungl.component.text-area :as text-area]
+;;            [fungl.component.text-area :as text-area]
             [fungl.dependable-atom :as dependable-atom]
             [fungl.util :as util]
             [hitype.util :as hitype-util]
@@ -138,11 +138,13 @@
   ) ;; TODO: remove-me
 
 (def middle-c 60)
-(def sexteenth-note-width 15)
+(def sexteenth-note-width 40)
 (def line-width 2)
 (def line-gap (/ sexteenth-note-width 1.4))
 (def row-height (* 5 line-gap))
-(def middle-finger-shade 210)
+(def middle-finger-shade 230)
+(def note-name-shade 40)
+(def out-of-scale-shade 170)
 (def gray-line-shade 240)
 (def fat-line-shade 30)
 (def note-names ["C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"])
@@ -218,11 +220,11 @@
 
 
 (defn line [pitch]
-  (layouts/superimpose (let [number-in-row (mod pitch 5)
+  (layouts/superimpose (let [number-in-row (mod (+ pitch 0) 6)
                              fat? (contains? ;;  #{ 1 2 3 4 }
-                                   #{ 1 3 4 }
+                                   #{ 0 }
                                    number-in-row)
-                             shaded-background? (in-scale? major pitch)
+                             shaded-background? (not (in-scale? major pitch))
                              #_(contains? #{1}
                                           #_#{0 2}
                                           number-in-row)
@@ -241,12 +243,19 @@
                                                                      255]))
                                  :y line-gap
                                  :height line-width)
-                          (when shaded-background?
+                          (when (#{2 3} number-in-row)
                             (assoc (visuals/rectangle-2 :fill-color [middle-finger-shade
                                                                      middle-finger-shade
                                                                      middle-finger-shade
                                                                      255])
-                                   :height line-gap))))))
+                                   :height line-gap))
+                          (when shaded-background?
+                              (assoc (visuals/rectangle-2 :fill-color [out-of-scale-shade
+                                                                       out-of-scale-shade
+                                                                       out-of-scale-shade
+                                                                       255])
+                                     :height line-gap
+                                     :width 30))))))
 
 (defn quantisize [resolution length]
   (* resolution
@@ -280,6 +289,71 @@
          :height line-gap))
 
 
+(defn gray [shade]
+  [shade shade shade 255])
+
+(defn grid []
+  (let [pad-width 120
+        gap 2
+        half-gap (/ gap 2)
+        first-pitch 0
+        row-count 8
+        column-count 25]
+    (layouts/superimpose
+     (assoc (visuals/rectangle-2 :fill-color (gray 180))
+            :width (* column-count pad-width)
+            :height (* row-count pad-width))
+     (for [y (range row-count)
+           x (range column-count)]
+
+       (let [row-from-bottom (inc (- row-count y))
+             pitch (+ first-pitch
+                      x
+                      (* row-from-bottom 6))]
+         (layouts/superimpose
+          (assoc (visuals/rectangle-2 :fill-color [200 200 200 255])
+                 :x (+ half-gap
+                       (* x pad-width))
+                 :y (+ half-gap
+                       (* y pad-width))
+                 :width  (- pad-width
+                            gap)
+                 :height (- pad-width
+                            gap))
+          (when (in-scale? major pitch)
+            (let [scale-mark-width (/ (- pad-width
+                                         gap)
+                                      3)]
+              (assoc (visuals/rectangle-2 :fill-color (if (= 0 (scale-position pitch))
+                                                        [200 100 100 255]
+                                                        [100 100 100 255]))
+                     :x (- (+ half-gap
+                              (/ (- pad-width
+                                    gap)
+                                 2)
+                              (* x pad-width))
+                           (/ scale-mark-width
+                              2))
+                     :y (- (+ half-gap
+                              (/ (- pad-width
+                                    gap)
+                                 2)
+                              (* y pad-width))
+                           (/ scale-mark-width
+                              2))
+                     :width  scale-mark-width
+                     :height scale-mark-width)))
+          (assoc (text (str (get note-names
+                                 (scale-position pitch))
+                            (octave-number pitch))
+                       (/ pad-width 4)
+                       (gray 140)
+                       #_(if (= 0 (mod (octave-number pitch) 2))
+                           (gray 0)
+                           (gray 140)))
+                 :x (* x pad-width)
+                 :y (* y pad-width))
+          ))))))
 
 
 (defn measure [minimum-pitch maximum-pitch]
@@ -297,34 +371,40 @@
                                            (- maximum-pitch
                                               minimum-pitch)))
                          (for [pitch (range minimum-pitch
-                                            (inc maximum-pitch))]
-                           (-> (text (str (get note-names
-                                               (scale-position pitch))
-                                          (if (= 0 (scale-position pitch))
-                                            (octave-number pitch)))
-                                     (* line-gap 0.9))
-                               (assoc :y
-                                      (+ 1
-                                         (* line-gap
-                                            (- maximum-pitch
-                                               pitch)))))))))
+                                              (inc maximum-pitch))]
+                             (-> (text (str (get note-names
+                                                 (scale-position pitch))
+                                            (if (= 0 (scale-position pitch))
+                                              (octave-number pitch)))
+                                       (* line-gap 0.9)
+                                       [note-name-shade note-name-shade note-name-shade 255])
+                                 (assoc :y
+                                        (+ 1
+                                           (* line-gap
+                                              (- maximum-pitch
+                                                 pitch)))))))))
 
 (comment
   (quot 10 5)
   ) ;; TODO: remove-me
 
-
+(defn measures [measure-count minimum-pitch maximum-pitch]
+  (layouts/horizontally-2 {}
+                          (repeat measure-count
+                                  [measure minimum-pitch
+                                   maximum-pitch]))  )
 (defn stave [notes]
   (let [minimum-pitch (- middle-c (* 2 12)) #_(apply min (map :pitch notes))
         maximum-pitch (+ middle-c (* 2 12)) #_(apply max (map :pitch notes))
         first-note-start-time (:start (first notes))
-        measure-count (/ (- (apply max (map :end notes))
-                            first-note-start-time)
-                         4)]
-    (layouts/superimpose (for [measure-number (range measure-count)]
-                           (assoc (measure minimum-pitch
-                                           maximum-pitch)
-                                  :x (* measure-number (* 16 sexteenth-note-width))))
+        measure-count 4 #_(/ (- (apply max (map :end notes))
+                                first-note-start-time)
+                             4)]
+    (layouts/superimpose [measures measure-count minimum-pitch maximum-pitch ]
+                         #_(for [measure-number (range measure-count)]
+                             (assoc (measure minimum-pitc´h
+                                             maximum-pitch)
+                                    :x (* measure-number (* 16 sexteenth-note-width))))
                          (assoc (layouts/superimpose (map note-view notes))
                                 :y (* (- maximum-pitch middle-c)
                                       line-gap)
@@ -357,7 +437,12 @@
 
 (def notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
                                               #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
-                                              "/Users/jukka/Downloads/IRON_MAN_02.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_dash_-_Electroman_adventures.mid"
+                                              "/Users/jukka/google-drive/jukka/music/Nausica_of_the_Valley_of_the_Wind_-_The_Days_Long_Gone__Nausicas_Theme.mid"
+                                              #_"/Users/jukka/Downloads/IRON_MAN_02.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/The_Final_Countdown_-_Piano.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_Dash_Medley.mid"
                                               #_"/Users/jukka/google-drive/jukka/music/testi.mid")
                                       (drop 0)
                                       (first)
@@ -532,7 +617,13 @@
 
 
   (when (= :key-pressed (:type event))
-    (cond (= :right (:key event))
+    (cond (= :up (:key event))
+          (swap! state-atom update :beats-per-minute #(+ % 10))
+
+          (= :down (:key event))
+          (swap! state-atom update :beats-per-minute #(- % 10))
+
+          (= :right (:key event))
           (swap! state-atom update :first-bar-in-view inc)
 
           (= :left (:key event))
@@ -597,7 +688,17 @@
 
 
 (defn base-view [state-atom]
-  (let [state @state-atom]
+  (let [state @state-atom
+        notes-in-view (->> @notes
+                           (drop-while (fn [note]
+                                         (< (:start note)
+                                            (* 4 (:first-bar-in-view state)))))
+                           (take-while (fn [note]
+                                         (< (:start note)
+                                            (* 4 (+ (:first-bar-in-view state)
+                                                    4))))))]
+    (prn 'state state) ;; TODO: remove me
+
     (when (:playing? state)
       (animation/swap-state! animation/set-wake-up 1)
       @animation/state-atom)
@@ -606,20 +707,13 @@
                          (layouts/vertically-2
                           {:margin 10}
                           (layouts/superimpose
-                           (stave (->> @notes
-                                       (drop-while (fn [note]
-                                                     (< (:start note)
-                                                        (* 4 (:first-bar-in-view state)))))
-                                       (take-while (fn [note]
-                                                     (< (:start note)
-                                                        (* 4 (+ (:first-bar-in-view state)
-                                                                6))))))
-                                  #_(for [n (range 8)]
-                                      (let [note (note-in-scale 0 major n)]
-                                        {:pitch note
-                                         :number-in-scale (inc (mod n 7))
-                                         :start (* 2 n)
-                                         :duration 2})))
+                           [stave notes-in-view
+                            #_(for [n (range 8)]
+                                (let [note (note-in-scale 0 major n)]
+                                  {:pitch note
+                                   :number-in-scale (inc (mod n 7))
+                                   :start (* 2 n)
+                                   :duration 2}))]
                            (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
                                   :x (* (+ (:play-head-position state)
                                            (if (:playing? state)
@@ -629,7 +723,7 @@
                                         (* sexteenth-note-width 4))
                                   :width 4
                                   :height (* 50 line-gap)))
-                          #_(text (pr-str @pressed-keys))))))
+                          (text (pr-str (:beats-per-minute state)))))))
 
 (defn ui []
   (let [state-atom (dependable-atom/atom {:first-bar-in-view 0
@@ -644,8 +738,10 @@
 (defn start []
   (prn "----------------") ;; TODO: remove-me
 
-  (reset! event-channel-atom (application/start-window #'ui
-                                                       :on-exit #(reset! event-channel-atom nil))))
+  (reset! event-channel-atom (application/start-application ;; #'ui
+                              #'grid
+                              :on-exit #(reset! event-channel-atom nil)
+                              :do-profiling true)))
 
 
 (when @event-channel-atom
@@ -656,8 +752,8 @@
   ) ;; TODO: remove-me
 
 (defn handle-midi-message [midi-message]
-  #_(prn midi-message) ;; TODO: remove-me
-
+  ;; (prn midi-message) ;; TODO: remove-me
+ 
   (cond (= :note-on (:command midi-message))
         (do
           #_(prn 'on
@@ -668,13 +764,15 @@
           ;;          (:note midi-message)
           ;;          (:velocity midi-message))
           (swap! pressed-keys conj (:note midi-message))
-          (async/>!! @event-channel-atom {:type :redraw}))
+          (async/>!! @event-channel-atom {:type :xxx})
+          )
 
         (= :note-off (:command midi-message))
         (do ;; (.noteOff channel
           ;;           (:note midi-message))
           (swap! pressed-keys disj (:note midi-message))
-          (async/>!! @event-channel-atom {:type :redraw}))))
+          (async/>!! @event-channel-atom {:type :xxx})
+          )))
 
 (defn best-fitting-root-index [scale notes]
   (->> (for [root-index (range 12)]
@@ -709,7 +807,8 @@
   (midi/midi-devices)
   (do (reset! notes
               (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
-                           "/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
+                           #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
+                           "/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
                            #_"/Users/jukka/google-drive/jukka/music/testi.mid")
                    (drop 0)
                    (first)
@@ -728,4 +827,4 @@
       (Thread/sleep 500)
       (midi/midi-note-off synth 0))
 
-  ) ;; TODO: remove-me
+  ) ;; TODO: remove-me 

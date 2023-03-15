@@ -16,9 +16,14 @@
             [time-literals.data-readers :as data-readers]
             [time-literals.read-write :as read-write]
             [clojure.test :refer :all]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [medley.core :as medley]
+            [flow-gl.graphics.font :as font]
+            [clojure.string :as string])
   (:import java.time.LocalDate
-           java.time.ZonedDateTime))
+           java.time.ZonedDateTime
+           java.io.BufferedReader
+           java.io.StringReader))
 
 (read-write/print-time-literals-clj!)
 
@@ -136,16 +141,21 @@
                     colors)
                [255])))
 
+(def font (font/create-by-name "SansSerif" 50))
 (defn teksti [teksti & [koko väri]]
   #_(visuals/text (str teksti) {:color (if väri
                                          (three-number-color väri)
                                          [0 0 0 255])
                                 :font-size (or koko 50)})
-  (visuals/text-area (str teksti)
-                     (if väri
-                       (three-number-color väri)
-                       [0 0 0 255])
-                     (visuals/liberation-sans-regular (or koko 50))))
+  (text-area/text (str teksti)
+                  (if väri
+                    väri #_(three-number-color väri)
+                    [0 0 0 255])
+                  #_font
+                  (if koko
+                    (font/create-by-name "SansSerif" (* 2 koko))
+                    font)
+                  #_(visuals/default-font) #_(visuals/liberation-sans-regular (or koko 50))))
 
 (defn- assoc-if-not-nil [map key value]
   (if value
@@ -187,8 +197,8 @@
 
   )
 
-(defn wrap-keyboard-event-hanlder [handler]
-  (fn [event]
+(defn wrap-keyboard-event-handler [handler]
+  (fn [_scene-graph event]
     (when (= :key-released (:type event))
       (handler {:näppäin (:key event)
                 :merkki (str (:character event))}))))
@@ -200,7 +210,7 @@
                    (when ~aloitus (~aloitus))
 
                    (fn []
-                     (keyboard/set-focused-event-handler! (wrap-keyboard-event-hanlder ~näppäimistökäsittelijä))
+                     (keyboard/set-focused-event-handler! (wrap-keyboard-event-handler ~näppäimistökäsittelijä))
                      ~kuva))))
        nil))
 
@@ -359,10 +369,25 @@
 
 
 
-  (piirrä (vierekkäin (allekkain (pumppaa "kissa.jpg" 0 2))
-                      (allekkain (pumppaa "marsu2.jpg" 0 2)))
-          #_(vierekkäin (allekkain (pumppaa "marsu.jpg" 0 5))
-                        (rivitä (pumppaa "kissa.jpg" 5 5))))
+  (piirrä #_(vierekkäin (allekkain (pumppaa "kissa.jpg" 0 2))
+                        (allekkain (pumppaa "marsu2.jpg" 0 2)))
+          (vierekkäin (allekkain (pumppaa "marsu.jpg" 0  1))
+                      (rivitä (pumppaa "kissa.jpg" 5 1))))
+
+
+  (piirrä (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 1))
+                      (rivitä (pumppaa "kissa.jpg" 5 1))))
+
+
+  (piirrä (allekkain (teksti (aika))
+                     (vierekkäin (toista 3 (kuva "marsu.jpg"
+                                                 (edes-takas 50
+                                                             500
+                                                             20
+                                                             (aika))
+                                                 200)))
+                     (vierekkäin (toista 3 (kuva "kissa.jpg" 300 200)))))
+
 
   (piirrä (allekkain (for [luku (luvut 1 10)]
                        (suorakaide 1000
@@ -378,31 +403,58 @@
                                    (vierekkäin (toista (edes-takas 1 5 5 (+ 1 (aika)))
                                                        (teksti "JUU"))))
 
-                      (allekkain (pumppaa "kissa.jpg"))))
-  )
+                      (allekkain (pumppaa "kissa.jpg")))))
 
 (comment
-    (prn 'base-view (:aloitus @view-atom)) ;; TODO: remove-me
+  (prn 'base-view (:aloitus @view-atom)) ;; TODO: remove-me
 
   ) ;; TODO: remove-me
 
+(def dark-mode {:background [0 0 0 255]
+                :foreground [100 190 190 255]
+                :instructions [80 110 110 255]})
+
+(def pink-mode {:background [124 3 132  255]
+                :foreground [244 3 252  255]
+                :instructions [204 3 212  255]})
+
+(def color-theme
+  dark-mode
+  ;;pink-mode
+  )
+
 (defn base-view []
-  (fn []
-    (animation/swap-state! animation/set-wake-up 1000)
-    ;;(prn 'base-view @animation/state-atom) ;; TODO: remove-me
-    @animation/state-atom
-    (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
-                         (layouts/center (layouts/vertically-2 {:margin 10} [@view-atom])))))
+  (animation/swap-state! animation/set-wake-up 1000)
+  @animation/state-atom
+
+  ;;(prn 'base-view @animation/state-atom) ;; TODO: remove-me
+
+  (layouts/superimpose (visuals/rectangle-2 :fill-color (:background color-theme))
+                       (layouts/with-margins 20 20 20 20
+                         (layouts/vertically-2 {:margin 10 :centered? true}
+                                               (layouts/with-maximum-size  nil nil
+                                                 [@view-atom])))))
+
+(defn test-view []
+  (animation/swap-state! animation/set-wake-up 1000)
+  @animation/state-atom
+
+  (layouts/with-margins 20 20 20 20
+    (teksti "asdf df asf dsaf dasd saf dasfad fa dsfds fasd fd"
+            50
+            [100 100 100 255])))
 
 (defn start []
   (prn "----------------") ;; TODO: remove-me
 
-  (application/start-window #'base-view))
+  (application/start-application #'base-view
+   ;; #'test-view
+   ))
 
 
-(def explosion (let [original-frames (buffered-image/gif-frames (io/resource "explosion.gif"))]
-                 (vec (concat (drop 7 original-frames)
-                              (take 7 original-frames)))))
+(def explosion nil #_(let [original-frames (buffered-image/gif-frames (io/resource "explosion.gif"))]
+                       (vec (concat (drop 7 original-frames)
+                                    (take 7 original-frames)))))
 
 (defn image-animation [animation-key frames end-image]
   (let [phase (animation/phase! animation-key
@@ -539,6 +591,326 @@
                  {:kysymys "1 - 1", :vastaus "0" :luokka :lumo}
                  {:kysymys "3 + 4", :vastaus "7" :luokka :lumo}
                  ])
+
+(defn käännä-toisin-päin [kysymys]
+  {:kysymys (:vastaus kysymys)
+   :vastaus (:kysymys kysymys)})
+
+(defn sanakysymykset [kysymykset]
+  (into #{}
+        (concat kysymykset
+                (map käännä-toisin-päin
+                     kysymykset))))
+
+(defn kysymys [kysymys vastaus]
+  {:kysymys kysymys
+   :vastaus vastaus})
+
+(defn kysymykset [& kysymys-vastaus-parit]
+  (->> kysymys-vastaus-parit
+       (partition 2)
+       (map (fn [[kysymys vastaus]]
+              {:kysymys kysymys
+               :vastaus vastaus}))))
+
+(deftest test-kysymykset
+  (is (= '({:kysymys "kysymys", :vastaus "vastaus"})
+         (kysymykset "kysymys" "vastaus"))))
+
+(def englannin-sanat-kappele-3
+  (sanakysymykset (kysymykset "stepmother" "äitipuoli"
+                              "stepfather" "isäpuoli"
+                              "parents" "vanhemmat"
+                              "grandparents" "isovanhemmat"
+                              "an uncle" "setä"
+                              "an aunt" "täti"
+                              "a cousin" "serkku"
+
+                              ;; "our" "meidän"
+                              ;; "Where are you from?" "Mistä olet kotoisin?"
+                              ;; "here" "täällä"
+                              ;; "from" "jostakin"
+                              ;; "come from" "tulla jostakin"
+
+                              ;; "salt" "suola"
+                              ;; "ketchup" "ketsuppi"
+                              ;; "bread" "leipä"
+                              ;; "butter" "voi"
+                              ;; "a fork" "haarukka"
+                              ;; "a knife" "veitsi"
+
+                              ;; "a spoon" "lusikka"
+                              ;; "a plate" "lautanen"
+                              ;; "a bowl" "kulho"
+                              ;; "a cup" "kuppi"
+                              ;; "a glass" "lasi"
+                              ;; "a mug" "muki"
+
+                              ;; "Pass me the ketchup, please." "Ojentaisitko ketsupin, kiitos."
+                              ;; "Here you are." "Ole hyvä."
+                              ;; "Can I have a spoon, please?" "Voisinko saada lusikan, kiitos?"
+                              ;; "There you go" "Ole hyvä."
+
+                              "next to" "vieressä"
+                              "in front on of"
+
+                              "a tree" "puu"
+                              "find" "löytää"
+                              "make" "valmistaa"
+                              "again" "uudelleen"
+                              )))
+
+(def englannin-sanat-kappele-7
+  (sanakysymykset (kysymykset
+
+                   ;; osattu kerran
+
+                   "january" "tammikuu"
+                   "february" "helmikuu"
+                   "march" "maaliskuu"
+                   "april" "huhtikuu"
+                   "may" "toukokuu"
+
+                   "winter" "talvi"
+                   "spring" "kevät"
+                   "summer" "kesä"
+                   "autumn" "syksy"
+                   "play tag" "leikkiä hippaa"
+
+                   "pick berries" "poimia marjoja"
+                   "climb a tree" "kiivetä puuhun"
+                   "walk the dog" "ulkoiluttaa koiraa"
+                   "build a snowman" "tehdä lumiukko"
+                   "go to the beach" "mennä uimarannalle"
+
+                   "play hide and seek" "leikkiä piilosta"
+                   "When is your birthday?" "Milloin on sinun syntymäpaiväsi?"
+                   "It's in June." "Se on kesakuussa."
+                   "What can you do in the summer?" "Mitä voit tehda kesälla?"
+                   "I can swim." "Mina voin uida."
+
+                   "a season" "vuodenaika"
+                   "think" "ajatella"
+                   "the first" "ensimmäinen"
+                   "smell" "haistaa, haistella"
+                   "a flower" "kukka"
+
+                   "june" "kesäkuu"
+                   "july" "heinäkuu"
+                   "august" "elokuu"
+                   "september" "syyskuu"
+                   "october" "lokakuu"
+                   "november" "marraskuu"
+                   "december" "joulukuu"
+
+                   ;; osasi hyvin
+
+                   ;; "cold" "kylmä"
+                   ;; "snow" "lumi"
+                   ;; "build" "rakentaa"
+                   ;; "take" "viedä, ottaa"
+                   ;; "their" "heidän"
+                   ;; "a turn" "vuoro"
+
+
+                   ;; ei osattu vielä
+
+
+                   ;; ei tarvitse osata
+
+                   ;; "silly" "hassu, hölmö"
+                   ;; "on my birthday" "syntymäpäivänäni"
+                   ;; "I'm thinking about" "minä ajattelen"
+                   ;; "a robin" "punarinta"
+                   ;; "what happened" "mitä tapahtui"
+                   ;; "happen" "tapahtua"
+                   ;; "it got so cold" "tuli niin kylmä"
+                   ;; "that's because" "siitä syystä, että"
+                   ;; "I was thinking" "mina ajattelin"
+                   ;; "there's lots to do" "on paljon, mitä voi tehdã"
+                   ;; "it's coming from" "se tulee"
+                   ;; "a snowman" "lumiukko"
+                   ;; "a snow fort" "lumilinna"
+                   ;; "a pity" "harmi"
+                   ;; "we don't have" "meillä ei ole"
+                   ;; "anymore" "enãä"
+                   ;; "a sledge" "pulkka"
+                   ;; "Catch it!" "Ota se kiinni!"
+                   ;; "Move over." "Siirry."
+                   ;; "Make room" "Tee tilaa"
+                   ;; "for me, too." "minullekin."
+                   ;; "Wait for me!" "Odottakaa minua!"
+                   ;; "That was fun." "Se oli hauskaa."
+                   ;; "back" "takaisin"
+
+
+                   )))
+
+(comment
+  (for [card englannin-sanat-kappele-7]
+    (println (str (:kysymys card) ";" (:vastaus card))))
+  ) ;; TODO: remove me
+
+
+
+(defn readout-to-pairs [read-out]
+  (let [lines (->> (io/reader (BufferedReader. (StringReader. read-out)))
+                   (line-seq)
+                   (remove #{""}))
+        pair-count (/ (count lines)
+                      2)]
+    (mapcat vector
+            (->> lines
+                 (take pair-count))
+            (->> lines
+                 (drop pair-count)))))
+
+(deftest test-readout-to-pairs
+  (is (= ["en 1" "fi 1" "en 2" "fi 2"]
+         (readout-to-pairs "en 1
+en 2
+
+fi 1
+fi 2"))))
+
+(defn print-pairs [pairs]
+  (doseq [[first second] (partition 2 pairs)]
+    (prn first second)))
+
+(comment
+  (print-pairs (readout-to-pairs "When is your birthday?
+It's in June.
+What can you do in the summer?
+I can swim.
+
+Milloin on sinun syntymäpaiväsi?
+Se on kesakuussa.
+Mitä voit tehda kesälla?
+Mina voin uida."))
+  ) ;; TODO: remove me
+
+(let [text "hassu, hölmö
+silly
+
+vuodenaika
+a season
+
+syntymäpäivänäni
+on my birthday
+
+minä ajattelen
+I'm thinking about
+
+ajatella
+think
+
+ensimmäinen
+the first
+
+punarinta
+a robin
+
+haistaa, haistella
+smell
+
+kukka
+a flower
+
+mitä tapahtui
+what happened
+tapahtua
+happen
+
+tuli niin kylmä
+it got so cold
+
+kylmä
+cold
+
+siitä syystä, että
+that's because
+
+mina ajattelin
+I was thinking
+
+on paljon, mitä voi tehdã
+there's lots to do
+
+lumi
+snow
+
+se tulee
+it's coming from
+
+rakentaa
+build
+
+lumiukko
+a snowman
+
+lumilinna
+a snow fort
+
+harmi
+a pity
+
+meillä ei ole
+we don't have
+
+enãä
+anymore
+
+pulkka
+a sledge
+
+Ota se kiinni!
+Catch it!
+
+Siirry.
+Move over.
+
+Tee tilaa
+Make room
+
+
+minullekin.
+for me, too.
+
+Odottakaa minua!
+Wait for me!
+
+Se oli hauskaa.
+That was fun.
+
+viedä, ottaa
+take
+
+takaisin
+back
+
+heidän
+their
+
+vuoro
+a turn"]
+  (print-pairs (->> (io/reader (BufferedReader. (StringReader. text)))
+                    (line-seq)
+                    (remove #{""})
+                    (partition 2)
+                    (mapcat reverse)))
+  )
+
+(mapcat vals [{:kysymys "our"
+               :vastaus "meidän"}
+              {:kysymys "Where are you from?"
+               :vastaus "Mistä olet kotoisin?"}
+              {:kysymys "here"
+               :vastaus "täällä"}
+              {:kysymys "from"
+               :vastaus "jostakin"}
+              {:kysymys "come from"
+               :vastaus "tulla jostakin"}])
+
 
 (comment
   (vec (for [x (range 2 10)
@@ -680,11 +1052,17 @@
                          :osaaminen 0}))))))
 
 (comment
+  (def log-backup @log)
+  (reset! log [])
+
+  (->> (osaamiset @log englannin-sanat-kappele-7)
+       (filter (fn [osaaminen]
+                 (not (= 0 (:osaaminen osaaminen))))))
   (def log (atom []))
 
   (viimeisimmät-tulokset-lokilta @log)
 
-  (spit "temp/valon-kysymysloki" @log)
+  (spit "temp/valon-kysymysloki-2" @log)
   (reset! log (eval (read-string (slurp "temp/valon-kysymysloki"))))
 
   (viimeisimmät-tulokset (lisää-osaamiset-tuloksiin (lisää-ajat-edelliseen-kertaan (loki-tuloksiksi @log))))
@@ -698,7 +1076,8 @@
           :kysymys (:seuraava-kysymys (hae tila))
           :tapahtuma tapahtuma}))
 
-(defn flash-cards []
+
+(defn flash-cards [kysymykset]
   (piirrä-2 :tila
             tila
 
@@ -707,24 +1086,25 @@
                      (lokita! tila :näytettiin-kysymys))
 
             :alkuarvo
-            (let [kysymykset (kertotaulu 7)
+            (let [#_kysymykset #_(kertotaulu 7)
+                  #_englannin-sanat-kappele-7
                   #_(set/union (set (->> (osaamiset @log
-                                                                kysymykset)
-                                                     (shuffle)
-                                                     (remove (fn [tulos]
-                                                               (= :lumo (-> tulos :kysymys :luokka))))
-                                                     (filter (fn [tulos]
-                                                               (< (:osaaminen tulos) 0.7)))
+                                                    kysymykset)
+                                         (shuffle)
+                                         (remove (fn [tulos]
+                                                   (= :lumo (-> tulos :kysymys :luokka))))
+                                         (filter (fn [tulos]
+                                                   (< (:osaaminen tulos) 0.7)))
 
-                                                     (map :kysymys)
-                                                     (take 6))
-                                                #_kysymykset
-                                                #_(take 3 kysymykset))
-                                           #_(set (->> (osaamiset @log
-                                                                  kysymykset)
-                                                       (filter (fn [tulos]
-                                                                 (= :lumo (-> tulos :kysymys :luokka))))
-                                                       (map :kysymys))))]
+                                         (map :kysymys)
+                                         (take 6))
+                                    #_kysymykset
+                                    #_(take 3 kysymykset))
+                               #_(set (->> (osaamiset @log
+                                                      kysymykset)
+                                           (filter (fn [tulos]
+                                                     (= :lumo (-> tulos :kysymys :luokka))))
+                                           (map :kysymys))))]
               {:jäljellä-olevat-kysymykset kysymykset
                :seuraava-kysymys (rand-nth (vec kysymykset))
                :tila :kysymys})
@@ -755,7 +1135,10 @@
                                           (fn [tila]
                                             (assoc tila
                                                    :tila :kysymys
-                                                   :seuraava-kysymys (rand-nth (vec (:jäljellä-olevat-kysymykset tila))))))
+                                                   :seuraava-kysymys (if (= 1 (count (:jäljellä-olevat-kysymykset tila)))
+                                                                       (first (:jäljellä-olevat-kysymykset tila))
+                                                                       (rand-nth (vec (disj (:jäljellä-olevat-kysymykset tila)
+                                                                                            (:seuraava-kysymys tila))))))))
                                  (lokita! tila :näytettiin-kysymys))
                          nil)))
 
@@ -763,21 +1146,29 @@
             (let [tila (hae tila)]
               (allekkain
                (case (:tila tila)
-                 :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila)))
+                 :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila))
+                                             50
+                                             (:foreground color-theme))
                                      (teksti "Paina \"k\" nähdäksesi vastauksen."
-                                             30))
+                                             30
+                                             (:instructions color-theme)
+                                             ))
                  :vastaus (allekkain (teksti (str (:kysymys (:seuraava-kysymys tila))
                                                   " = "
-                                                  (:vastaus (:seuraava-kysymys tila))))
-                                     (teksti (format "Aikaa kului: %.1f sekuntia" (double (/ (let [[aloitus lopetus] (take-last 2 @log)]
-                                                                                               (.toMillis (java.time.Duration/between (:aika aloitus)
-                                                                                                                                      (:aika lopetus))))
-                                                                                             1000)))
-                                             30)
+                                                  (:vastaus (:seuraava-kysymys tila)))
+                                             50
+                                             (:foreground color-theme))
+                                     #_(teksti (format "Aikaa kului: %.1f sekuntia" (double (/ (let [[aloitus lopetus] (take-last 2 @log)]
+                                                                                                 (.toMillis (java.time.Duration/between (:aika aloitus)
+                                                                                                                                        (:aika lopetus))))
+                                                                                               1000)))
+                                               30)
                                      (teksti "Paina \"j\" jos osasit ja \"k\" jos et osannut."
-                                             30)
+                                             30
+                                             (:instructions color-theme))
                                      (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
-                                             30))
+                                             30
+                                             (:instructions color-theme)))
                  :valmis (allekkain (teksti "Opit kaikki!")
                                     (teksti "Osaamisesi:")
                                     (layouts/vertically-2 {}
@@ -789,8 +1180,9 @@
 
 
 (comment
+  englannin-sanat-kappele-7
   (kirjoitusharjoitus)
-  (flash-cards)
+
 
   (piirrä-2 :tila merkki
             :alkuarvo ""
@@ -871,3 +1263,311 @@
 
 
   )
+
+#_(piirrä (allekkain (teksti (aika))
+                     (vierekkäin (toista 3 (kuva "marsu.jpg"
+                                                 (edes-takas 50
+                                                             500
+                                                             20
+                                                             (aika))
+                                                 200)))
+                     (vierekkäin (toista 3 (kuva "kissa.jpg" 300 200)))))
+
+
+(defn read-crc [crc-string]
+  (->> crc-string
+       (string/split-lines)
+       (map #(string/replace % #"\[.*\]" ""))
+       (map string/trim)
+       (remove empty?)))
+
+(def kappale-7 "
+silly
+hassu, hölmö
+[si:zn]
+vuodenaika
+a season
+on my birthday [on mai 'ba:0dei]
+syntymäpäivänäni
+I'm thinking about [aim 'Oinkin a'baut]
+minä ajattelen
+think
+[eink]
+ajatella
+the first
+[fa:st]
+ensimmäinen
+a robin
+[robin]
+punarinta
+smell
+[smel]
+haistaa, haistella
+a flower
+[flaua(r)]
+kukka
+what happened [wot 'hapnd]
+mitä tapahtui
+happen
+['hapn]
+tapahtua
+it got so cold
+[it got sau 'kauld]
+tuli niin kylmä
+cold
+[kauld]
+kylmä
+that's because
+[Jats bi'ka:z]
+siitä syystä, että
+I was thinking [ai waz 'Oinkin]
+minä ajattelin
+there's lots to do [deaz lots ta 'du:]
+on paljon, mitä voi tehdä
+snow
+[snau]
+lumi
+it's coming from [its 'kamin fram]
+se tulee
+build
+[bild]
+rakentaa
+a snowman
+[snauman]
+lumiukko
+a snow fort
+[snau 'fat]
+lumilinna
+a pity
+[pitil]
+harmi
+we don't have [wi daunt 'hav]
+meilla ei ole
+anymore
+[enima:(r)]
+enãä
+a sledge
+[sleds]
+pulkka
+Catch it!
+[kat] it]
+Ota se kiinni!
+Move over.
+[mu:v auva]
+Siirry.
+Make room
+[meik rum]
+Tee tilaa
+for me, too.
+minullekin.
+Wait for me!
+[weit fa 'mi:]
+Odottakaa minua!
+That was fun.
+Se oli hauskaa.
+take
+vieda, ottaa
+back
+[baek]
+takaisin
+their
+heidän
+a turn
+[tain]
+vuoro")
+
+(def who "
+I
+minä
+you
+sinä
+he
+hän (pojasta)
+she
+hän (tytöstä)
+it
+se
+we
+me
+you
+te
+they
+he, ne
+Whose?
+Kenen?
+my
+minun
+your
+sinun
+his
+hänen (pojasta)
+her
+hänen (tytöstä)
+its
+sen
+our
+meidän
+your
+teidän
+their
+heidän, niiden")
+
+(defn crc-to-batch [crc batch-index]
+  (->> crc
+       (read-crc)
+       (partition-all 10)
+       (drop batch-index)
+       (first)))
+
+(defn crc-to-flascards [crc batch-index]
+  (->> (crc-to-batch crc batch-index)
+       (apply kysymykset)
+       (sanakysymykset)
+       (flash-cards)))
+
+(defn cram-line [{:keys [kysymys vastaus]}]
+  (str (string/trim kysymys) " / " (string/trim vastaus)))
+
+(defn crc-to-cram [crc batch-index]
+  (->> (crc-to-batch crc batch-index)
+       (apply kysymykset)
+       (sanakysymykset)
+       (map cram-line)
+       (run! println)))
+
+(comment
+  (crc-to-batch kappale-7 4)
+
+  ;; 0, 1 2, 3 osattu
+
+  (crc-to-flascards kappale-7 4)
+
+  (crc-to-batch who 3)
+  (crc-to-flascards who 3)
+
+
+  (crc-to-cram who 0)
+  ) ;; TODO: remove me
+
+(def chapter-9 "
+Sports
+basketball
+skating
+baseball
+volleyball
+badminton
+ice hockey
+skiing
+
+Urheilulajeja
+koripallo
+luisteleminen
+(amerikkalainen) pesäpallo
+lentopallo
+sulkapallo
+jääkiekko
+hiihtäminen
+
+Opinions
+hard
+easy
+boring
+interesting
+exciting
+
+Mielipiteitä
+vaikea
+helppo
+tylsä
+mielenkiintoinen
+jännittävä
+
+I think ice hockey is exciting.
+Me, too.
+I think basketball is easy.
+I don't think so.
+
+Minun mielestäni jääkiekko on jännittävää.
+Niin minustakin.
+Minun mielestäni koripallo on helppoa.
+Ei minun mielestäni.
+")
+
+(def chapter-9-2 "
+fun and games
+What's up?
+upstairs
+Dive in.
+we are coming
+do
+anything
+a sport
+there is
+a bat
+how about
+rollerblades
+That's a good idea!
+does everyone have
+everyone
+a helmet
+we made up
+Now what?
+a trampoline
+a hoop
+cheating
+anyone
+does anyone know
+real
+a rule
+make up
+own
+Score!
+after
+
+hauskanpito
+Miten menee?
+yläkerrassa
+Sukella sisään.
+me olemme tulossa
+tehdä
+mitä tahansa
+urheilulaji
+siinä on
+maila
+entä
+rullaluistimet
+Se on hyvä idea!
+onko kaikilla
+jokainen, kaikki
+kypärä
+me keksimme
+Mitä nyt?
+trampolini
+korirengas (koripallossa)
+huijaaminen
+kukaan
+tietääkö kukaan
+oikea
+sääntö
+keksiä
+oma
+Kori!. Pisteet kotiin!
+jälkeen
+
+")
+(comment
+  (->> (string/split-lines chapter-9-2)
+       (partition-by empty?)
+       (remove #{'("")})
+       (partition 2)
+       (mapcat (fn [[english-words finnish-words]]
+                 (interleave  english-words finnish-words)))
+       (apply kysymykset)
+       (drop 5)
+       (take 5)
+       (sanakysymykset)
+       (flash-cards)
+       )
+
+  (flash-cards #{{:kysymys "bla bla bla bla bla bla bla bla bla" , :vastaus "diipa daaba diipa daaba diipa daaba"}})
+  ) ;; TODO: remove me
