@@ -215,7 +215,7 @@
 (defn octave-number [pitch]
   (dec (quot pitch 12)))
 
-(defn scale-position [pitch]
+(defn note [pitch]
   (mod pitch 12))
 
 
@@ -292,13 +292,34 @@
 (defn gray [shade]
   [shade shade shade 255])
 
+(def pad-width 120)
+(def gap 4)
+(def scale-mark-width (/ (- pad-width
+                            gap)
+                         3))
+
+(defn note-mark-coordinate [pad-coordinate]
+  (- (+ (/ gap 2)
+        (/ (- pad-width
+              gap)
+           2)
+        (* pad-coordinate pad-width))
+     (/ scale-mark-width
+        2)))
+
+(defn note-number-to-note [scale note-number]
+  (reduce + (take (dec note-number)
+                  scale)))
+
 (defn grid []
-  (let [pad-width 120
-        gap 2
-        half-gap (/ gap 2)
-        first-pitch 0
+  (let [half-gap (/ gap 2)
+        first-pitch 6
         row-count 8
-        column-count 25]
+        column-count 25
+        highlighted-note-numbers #{1 3 5}
+        highlighted-notes (into #{} (map (partial note-number-to-note
+                                                  major)
+                                         highlighted-note-numbers))]
     (layouts/superimpose
      (assoc (visuals/rectangle-2 :fill-color (gray 180))
             :width (* column-count pad-width)
@@ -311,7 +332,7 @@
                       x
                       (* row-from-bottom 6))]
          (layouts/superimpose
-          (assoc (visuals/rectangle-2 :fill-color [200 200 200 255])
+          (assoc (visuals/rectangle-2 :fill-color (gray 255))
                  :x (+ half-gap
                        (* x pad-width))
                  :y (+ half-gap
@@ -321,39 +342,44 @@
                  :height (- pad-width
                             gap))
           (when (in-scale? major pitch)
-            (let [scale-mark-width (/ (- pad-width
-                                         gap)
-                                      3)]
-              (assoc (visuals/rectangle-2 :fill-color (if (= 0 (scale-position pitch))
-                                                        [200 100 100 255]
-                                                        [100 100 100 255]))
-                     :x (- (+ half-gap
-                              (/ (- pad-width
-                                    gap)
-                                 2)
-                              (* x pad-width))
-                           (/ scale-mark-width
-                              2))
-                     :y (- (+ half-gap
-                              (/ (- pad-width
-                                    gap)
-                                 2)
-                              (* y pad-width))
-                           (/ scale-mark-width
-                              2))
-                     :width  scale-mark-width
-                     :height scale-mark-width)))
+            (assoc (visuals/rectangle-2 :fill-color (if (= 0 (note pitch))
+                                                      [200 100 100 255]
+                                                      (gray 200)))
+                   :x (note-mark-coordinate x)
+                   :y (note-mark-coordinate y)
+                   :width  scale-mark-width
+                   :height scale-mark-width))
+          (when (contains? highlighted-notes
+                           (note pitch))
+            (let [highlight-gap 3
+                  highlight-line-width 4
+                  highlight-width (+ (* 2 (+ highlight-gap highlight-line-width))
+                                     scale-mark-width)]
+              (assoc (visuals/rectangle-2 :draw-color [0 0 255 255]
+                                          :line-width 4
+                                          :fill-color nil)
+                     :x (- (note-mark-coordinate x)
+                           highlight-gap
+                           highlight-line-width)
+                     :y (- (note-mark-coordinate y)
+                           highlight-gap
+                           highlight-line-width)
+                     :width  highlight-width
+                     :height highlight-width)))
           (assoc (text (str (get note-names
-                                 (scale-position pitch))
+                                 (note pitch))
                             (octave-number pitch))
-                       (/ pad-width 4)
+                       (/ pad-width 5)
                        (gray 140)
                        #_(if (= 0 (mod (octave-number pitch) 2))
                            (gray 0)
                            (gray 140)))
-                 :x (* x pad-width)
-                 :y (* y pad-width))
-          ))))))
+                 :x (+ 2
+                       half-gap
+                       (* x pad-width))
+                 :y (+ 2
+                       half-gap
+                       (* y pad-width)))))))))
 
 
 (defn measure [minimum-pitch maximum-pitch]
@@ -373,8 +399,8 @@
                          (for [pitch (range minimum-pitch
                                               (inc maximum-pitch))]
                              (-> (text (str (get note-names
-                                                 (scale-position pitch))
-                                            (if (= 0 (scale-position pitch))
+                                                 (note pitch))
+                                            (if (= 0 (note pitch))
                                               (octave-number pitch)))
                                        (* line-gap 0.9)
                                        [note-name-shade note-name-shade note-name-shade 255])
@@ -685,8 +711,6 @@
                       :width grid-size
                       :height grid-size))))))
 
-
-
 (defn base-view [state-atom]
   (let [state @state-atom
         notes-in-view (->> @notes
@@ -753,7 +777,7 @@
 
 (defn handle-midi-message [midi-message]
   ;; (prn midi-message) ;; TODO: remove-me
- 
+
   (cond (= :note-on (:command midi-message))
         (do
           #_(prn 'on
@@ -827,4 +851,4 @@
       (Thread/sleep 500)
       (midi/midi-note-off synth 0))
 
-  ) ;; TODO: remove-me 
+  ) ;; TODO: remove-me
