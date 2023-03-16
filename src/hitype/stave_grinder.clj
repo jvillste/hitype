@@ -157,6 +157,9 @@
 (def note-name-to-index (into {} (map vec (map reverse (map-indexed vector note-names)))))
 (def flat-note-name-to-index (into {} (map vec (map reverse (map-indexed vector flat-note-names)))))
 
+(defn note-name [note]
+  (get note-names (dec note)))
+
 (defn note-in-scale [root-index scale n]
   (+ root-index
      (->> scale
@@ -218,6 +221,58 @@
 (defn note [pitch]
   (mod pitch 12))
 
+(defn pitch [octave note]
+  (dec (+ (* 12 octave)
+          note)))
+
+(defn chord [number]
+  (->> (range 1 8)
+       (cycle)
+       (drop (dec number))
+       (partition 2)
+       (map first)
+       (take 3)))
+
+(deftest test-chord
+  (is (= '((1 3 5) (2 4 6) (3 5 7) (4 6 1) (5 7 2) (6 1 3) (7 2 4))
+         (map chord (range 1 8)))))
+
+(defn note-number-to-note [scale note-number]
+  (inc (reduce + (take (dec note-number)
+                       scale))))
+
+(deftest test-note-number-to-note
+  (is (= 1
+         (note-number-to-note [1 2 3]
+                              1)))
+
+  (is (= 2
+         (note-number-to-note [1 2 3]
+                              2)))
+
+  (is (= 4
+         (note-number-to-note [1 2 3]
+                              3)))
+
+  (is (= 7
+         (note-number-to-note [1 2 3]
+                              4))))
+
+(defn chord-notes [key scale chord-number]
+  (->> (chord chord-number)
+       (map (partial note-number-to-note scale))
+       (map #(+ (dec key)
+                %))))
+
+(deftest test-chord-notes
+  (is (= '("C" "E" "G")
+         (map note-name (chord-notes 1 major 1))))
+
+  (is (= '("D" "F" "A")
+         (map note-name (chord-notes 1 major 2))))
+
+  (is (= '("D" "F#" "A")
+         (map note-name (chord-notes 3 major 1)))))
 
 (defn line [pitch]
   (layouts/superimpose (let [number-in-row (mod (+ pitch 0) 6)
@@ -292,34 +347,69 @@
 (defn gray [shade]
   [shade shade shade 255])
 
-(def pad-width 120)
-(def gap 4)
-(def scale-mark-width (/ (- pad-width
-                            gap)
-                         3))
+(defn gap [pad-width]
+  (/ pad-width 30))
 
-(defn note-mark-coordinate [pad-coordinate]
-  (- (+ (/ gap 2)
+(defn scale-mark-width [pad-width]
+  (/ (- pad-width
+        (gap pad-width))
+     3))
+
+(defn note-mark-coordinate [pad-width pad-coordinate]
+  (- (+ (/ (gap pad-width) 2)
         (/ (- pad-width
-              gap)
+              (gap pad-width))
            2)
         (* pad-coordinate pad-width))
-     (/ scale-mark-width
+     (/ (scale-mark-width pad-width)
         2)))
 
-(defn note-number-to-note [scale note-number]
-  (reduce + (take (dec note-number)
-                  scale)))
+(def pad-width 120)
 
-(defn grid []
-  (let [half-gap (/ gap 2)
-        first-pitch 6
-        row-count 8
-        column-count 25
-        highlighted-note-numbers #{1 3 5}
-        highlighted-notes (into #{} (map (partial note-number-to-note
-                                                  major)
-                                         highlighted-note-numbers))]
+(def default-grid-options {:first-pitch (+ 12 6)
+                           :row-interval 6
+                           :row-count 8
+                           :column-count 25})
+
+(defn pitch-highlights [pitches & [options]]
+  (let [pitch-set (set pitches)
+        {:keys [row-count column-count row-interval first-pitch]} (merge default-grid-options
+                                                                         options)
+        gap (gap pad-width)
+        scale-mark-width (scale-mark-width pad-width)]
+
+    (layouts/superimpose
+     (for [y (range row-count)
+           x (range column-count)]
+
+       (let [row-from-bottom (inc (- row-count y))
+             pitch (+ first-pitch
+                      x
+                      (* row-from-bottom row-interval))]
+         (when (contains? pitch-set
+                          pitch)
+           (let [highlight-line-width 4
+                 highlight-width (+ (* 2 (+ gap highlight-line-width))
+                                    scale-mark-width)]
+             (merge (assoc (visuals/rectangle-2 :draw-color (or (:draw-color options)
+                                                                [0 0 255 255])
+                                                :line-width 4
+                                                :fill-color (:fill-color options))
+                           :x (- (note-mark-coordinate pad-width x)
+                                 gap
+                                 highlight-line-width)
+                           :y (- (note-mark-coordinate pad-width y)
+                                 gap
+                                 highlight-line-width)
+                           :width  highlight-width
+                           :height highlight-width)))))))))
+
+(defn grid [& [options]]
+  (let [gap (gap pad-width)
+        scale-mark-width (scale-mark-width pad-width)
+        half-gap (/ gap 2)
+        {:keys [row-count column-count row-interval first-pitch]} (merge default-grid-options
+                                                                         options)]
     (layouts/superimpose
      (assoc (visuals/rectangle-2 :fill-color (gray 180))
             :width (* column-count pad-width)
@@ -330,9 +420,12 @@
        (let [row-from-bottom (inc (- row-count y))
              pitch (+ first-pitch
                       x
-                      (* row-from-bottom 6))]
+                      (* row-from-bottom row-interval))]
          (layouts/superimpose
-          (assoc (visuals/rectangle-2 :fill-color (gray 255))
+          (assoc (visuals/rectangle-2 :fill-color #_(gray 255)
+                                      (if (= 0 (mod (octave-number pitch) 2))
+                                        (gray 255)
+                                        (gray 230)))
                  :x (+ half-gap
                        (* x pad-width))
                  :y (+ half-gap
@@ -345,35 +438,16 @@
             (assoc (visuals/rectangle-2 :fill-color (if (= 0 (note pitch))
                                                       [200 100 100 255]
                                                       (gray 200)))
-                   :x (note-mark-coordinate x)
-                   :y (note-mark-coordinate y)
+                   :x (note-mark-coordinate pad-width x)
+                   :y (note-mark-coordinate pad-width y)
                    :width  scale-mark-width
                    :height scale-mark-width))
-          (when (contains? highlighted-notes
-                           (note pitch))
-            (let [highlight-gap 3
-                  highlight-line-width 4
-                  highlight-width (+ (* 2 (+ highlight-gap highlight-line-width))
-                                     scale-mark-width)]
-              (assoc (visuals/rectangle-2 :draw-color [0 0 255 255]
-                                          :line-width 4
-                                          :fill-color nil)
-                     :x (- (note-mark-coordinate x)
-                           highlight-gap
-                           highlight-line-width)
-                     :y (- (note-mark-coordinate y)
-                           highlight-gap
-                           highlight-line-width)
-                     :width  highlight-width
-                     :height highlight-width)))
           (assoc (text (str (get note-names
                                  (note pitch))
-                            (octave-number pitch))
+                            #_(octave-number pitch))
                        (/ pad-width 5)
                        (gray 140)
-                       #_(if (= 0 (mod (octave-number pitch) 2))
-                           (gray 0)
-                           (gray 140)))
+                       )
                  :x (+ 2
                        half-gap
                        (* x pad-width))
@@ -381,6 +455,37 @@
                        half-gap
                        (* y pad-width)))))))))
 
+
+
+(defn chord-grid [key scale chord-number]
+  (let [row-interval 5]
+    (layouts/superimpose
+     (grid {:row-interval row-interval})
+     (pitch-highlights (let [chord-notes (chord-notes key scale chord-number)
+                             octave-notes (fn [octave]
+                                            (map (partial pitch octave)
+                                                 chord-notes))]
+                         (mapcat octave-notes (range 8)))
+                       {:row-interval row-interval})
+     (pitch-highlights (let [first-chord-note (first  (chord-notes key scale chord-number))]
+                         (map (fn [octave]
+                                (pitch octave first-chord-note))
+                              (range 8)))
+                       {:fill-color [0 255 0 255]
+                        :row-interval row-interval}))))
+
+(defn chord-view []
+  (let [scale 0.5]
+    (layouts/flow
+     (for [chord (range 1 8)]
+       (layouts/with-margins 10 10 10 10
+         (layouts/scale scale scale
+                       [chord-grid 1 major chord])))))
+
+  #_(layouts/superimpose
+     [chord-grid 1 major 1]
+     (pitch-highlights @pressed-keys
+                       {:fill-color [255 0 0 255]})))
 
 (defn measure [minimum-pitch maximum-pitch]
   (layouts/with-maximum-size (* 16 sexteenth-note-width) nil
@@ -484,6 +589,9 @@
       (first (.getChannels synthesizer)))))
 
 (comment
+  
+  (midi/midi-handle-events (midi/midi-in "LinnStrument MIDI")
+                           #'handle-midi-message)
   (midi/midi-handle-events (midi/midi-in  "Launchpad X LPX MIDI Out")
                            #'handle-midi-message)
 
@@ -763,7 +871,8 @@
   (prn "----------------") ;; TODO: remove-me
 
   (reset! event-channel-atom (application/start-application ;; #'ui
-                              #'grid
+;;                              #'grid
+                              #'chord-view
                               :on-exit #(reset! event-channel-atom nil)
                               :do-profiling true)))
 
@@ -776,7 +885,7 @@
   ) ;; TODO: remove-me
 
 (defn handle-midi-message [midi-message]
-  ;; (prn midi-message) ;; TODO: remove-me
+  (prn midi-message) ;; TODO: remove-me
 
   (cond (= :note-on (:command midi-message))
         (do
