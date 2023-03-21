@@ -448,8 +448,8 @@
   (prn "----------------") ;; TODO: remove-me
 
   (application/start-application #'base-view
-   ;; #'test-view
-   ))
+                                 ;; #'test-view
+                                 ))
 
 
 (def explosion nil #_(let [original-frames (buffered-image/gif-frames (io/resource "explosion.gif"))]
@@ -787,9 +787,9 @@ Milloin on sinun syntymäpaiväsi?
 Se on kesakuussa.
 Mitä voit tehda kesälla?
 Mina voin uida."))
-  ) ;; TODO: remove me
 
-(let [text "hassu, hölmö
+
+  (let [text "hassu, hölmö
 silly
 
 vuodenaika
@@ -893,12 +893,15 @@ their
 
 vuoro
 a turn"]
-  (print-pairs (->> (io/reader (BufferedReader. (StringReader. text)))
-                    (line-seq)
-                    (remove #{""})
-                    (partition 2)
-                    (mapcat reverse)))
-  )
+    (print-pairs (->> (io/reader (BufferedReader. (StringReader. text)))
+                      (line-seq)
+                      (remove #{""})
+                      (partition 2)
+                      (mapcat reverse)))
+    )
+  ) ;; TODO: remove me
+
+
 
 (mapcat vals [{:kysymys "our"
                :vastaus "meidän"}
@@ -1076,6 +1079,36 @@ a turn"]
           :kysymys (:seuraava-kysymys (hae tila))
           :tapahtuma tapahtuma}))
 
+(defn remove-question-as-long-as-some-is-left [question-to-be-removed questions-set]
+  (if (= 1 (count questions-set))
+    questions-set
+    (let [remaining-questions (disj questions-set
+                                    question-to-be-removed)]
+      (if (= 1 (count remaining-questions))
+        remaining-questions
+        (disj remaining-questions
+              (käännä-toisin-päin question-to-be-removed))))))
+
+(deftest test-remove-question-as-long-as-some-is-left
+  (is (= #{{:kysymys 1, :vastaus 2}}
+         (remove-question-as-long-as-some-is-left {:kysymys 1 :vastaus 2}
+                                                  #{{:kysymys 1 :vastaus 2}})))
+
+  (is (= #{{:kysymys 1, :vastaus 3}}
+         (remove-question-as-long-as-some-is-left {:kysymys 1 :vastaus 2}
+                                                  #{{:kysymys 1 :vastaus 2}
+                                                    {:kysymys 1 :vastaus 3}})))
+
+  (is (= #{{:kysymys 2, :vastaus 1}}
+         (remove-question-as-long-as-some-is-left {:kysymys 1 :vastaus 2}
+                                                  #{{:kysymys 1 :vastaus 2}
+                                                    {:kysymys 2 :vastaus 1}})))
+
+  (is (= #{{:kysymys 2, :vastaus 3}}
+         (remove-question-as-long-as-some-is-left {:kysymys 1 :vastaus 2}
+                                                  #{{:kysymys 1 :vastaus 2}
+                                                    {:kysymys 2 :vastaus 1}
+                                                    {:kysymys 2 :vastaus 3}}))))
 
 (defn flash-cards [kysymykset]
   (piirrä-2 :tila
@@ -1121,6 +1154,8 @@ a turn"]
                                           (fn [tila]
                                             (let [jäljellä-olevat-kysymykset (disj (:jäljellä-olevat-kysymykset tila)
                                                                                    (:seuraava-kysymys tila))]
+                                              (prn 'jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset) ;; TODO: remove me
+
                                               (if (empty? jäljellä-olevat-kysymykset)
                                                 (assoc tila
                                                        :tila :valmis
@@ -1128,22 +1163,23 @@ a turn"]
                                                 (assoc tila
                                                        :tila :kysymys
                                                        :jäljellä-olevat-kysymykset jäljellä-olevat-kysymykset
-                                                       :seuraava-kysymys (rand-nth (vec jäljellä-olevat-kysymykset)))))))
+                                                       :seuraava-kysymys (rand-nth (vec (remove-question-as-long-as-some-is-left (:seuraava-kysymys tila)
+                                                                                                                                 jäljellä-olevat-kysymykset))))))))
                                  (lokita! tila :näytettiin-kysymys))
                          "k" (do (lokita! tila :ei-osattu)
                                  (vaihda! tila
                                           (fn [tila]
                                             (assoc tila
                                                    :tila :kysymys
-                                                   :seuraava-kysymys (if (= 1 (count (:jäljellä-olevat-kysymykset tila)))
-                                                                       (first (:jäljellä-olevat-kysymykset tila))
-                                                                       (rand-nth (vec (disj (:jäljellä-olevat-kysymykset tila)
-                                                                                            (:seuraava-kysymys tila))))))))
+                                                   :seuraava-kysymys (rand-nth (vec (remove-question-as-long-as-some-is-left (:seuraava-kysymys tila)
+                                                                                                                             (:jäljellä-olevat-kysymykset tila)))))))
                                  (lokita! tila :näytettiin-kysymys))
                          nil)))
 
             :kuva
             (let [tila (hae tila)]
+              (prn 'tila tila) ;; TODO: remove me
+              (def tila tila)  ;; TODO: remove me
               (allekkain
                (case (:tila tila)
                  :kysymys (allekkain (teksti (:kysymys (:seuraava-kysymys tila))
@@ -1169,14 +1205,18 @@ a turn"]
                                      (teksti (str (count (:jäljellä-olevat-kysymykset tila)) " kysymystä jäljellä")
                                              30
                                              (:instructions color-theme)))
-                 :valmis (allekkain (teksti "Opit kaikki!")
+                 :valmis (allekkain (teksti "Opit kaikki!"
+                                            50
+                                            (:foreground color-theme))
                                     (teksti "Osaamisesi:")
                                     (layouts/vertically-2 {}
                                                           (for [osaaminen (->> (osaamiset @log
                                                                                           (:jäljellä-olevat-kysymykset tila))
                                                                                (sort-by :osaaminen))]
-                                                            (teksti (str (format "%.0f" (* 100 (double (:osaaminen osaaminen)))) "  =  " (:kysymys (:kysymys osaaminen)))
-                                                                    30)))))))))
+                                                            (teksti (str (format "%.0f" (* 100 (double (:osaaminen osaaminen)))) " :  " (:kysymys (:kysymys osaaminen))
+                                                                         " = " (:vastaus (:kysymys osaaminen)))
+                                                                    30
+                                                                    (:foreground color-theme))))))))))
 
 
 (comment
@@ -1280,6 +1320,90 @@ a turn"]
        (map #(string/replace % #"\[.*\]" ""))
        (map string/trim)
        (remove empty?)))
+
+(def kappale-10 "
+Kuka on ensin?
+Who's first?
+
+täytyä
+have to
+
+videoblogi
+a video blog (a vlog)
+
+
+harrastus
+a hobby
+
+haastatella
+interview
+
+minua, minut
+me
+
+paljon
+lots of
+
+kayttää
+use
+
+aanittãã
+record
+
+ensin
+first
+
+пореа
+quick
+
+today
+tänãän
+
+
+iltapäivä
+an afternoon
+
+an evening
+ilta
+
+sama
+the same
+
+favourite
+suosikki-, lempi-
+
+said
+sanoi
+
+like best
+pitää eniten
+
+more
+enemmän
+
+long
+pitkä
+
+an hour
+tunti
+
+an hour and a half
+puolitoista tuntia
+
+last
+vimeinen
+
+a question
+kysymys
+
+drop
+jattää pois
+
+Girl Guides
+tyttöjen partio
+
+interrupting
+keskeyttäminen")
 
 (def kappale-7 "
 silly
@@ -1438,6 +1562,9 @@ heidän, niiden")
 (comment
   (crc-to-batch kappale-7 4)
 
+  (crc-to-batch kappale-10 1)
+  (crc-to-flascards kappale-7 4)
+
   ;; 0, 1 2, 3 osattu
 
   (crc-to-flascards kappale-7 4)
@@ -1555,19 +1682,63 @@ Kori!. Pisteet kotiin!
 jälkeen
 
 ")
-(comment
-  (->> (string/split-lines chapter-9-2)
+
+(def kappale-10-2
+  "
+Hobbies
+scout meeting
+arts and crafts
+drama club
+camera club
+choir practice
+dance class
+Time
+o'clock
+to
+past
+half past
+quarter
+What time is it?
+It's ten past one.
+What time do you have your drama club?
+At ten to two.
+
+Harrastuksia
+partiokokous
+kuvataidekerho
+näytelmäkerho
+valokuvauskerho
+kuoroharjoitukset
+tanssitunti
+Aika
+tasan
+vaille
+yli
+puoli
+vartti (15 min.)
+Paljonko kello on?
+Kello on kymmenen yli yksi.
+Mihin aikaan sinulla on näytelmäkerho?
+Kymmentä vaille kaksi.")
+
+(defn parse-two-columns [string]
+  (->> (string/split-lines string)
        (partition-by empty?)
        (remove #{'("")})
        (partition 2)
        (mapcat (fn [[english-words finnish-words]]
                  (interleave  english-words finnish-words)))
-       (apply kysymykset)
-       (drop 5)
-       (take 5)
-       (sanakysymykset)
-       (flash-cards)
-       )
+       (apply kysymykset)))
 
-  (flash-cards #{{:kysymys "bla bla bla bla bla bla bla bla bla" , :vastaus "diipa daaba diipa daaba diipa daaba"}})
+(defn questions-to-flash-cards [batch-size batch-index questions]
+  (reset! log [])
+  (->> questions
+       (drop (* batch-size batch-index))
+       (take batch-size)
+       (sanakysymykset)
+       (flash-cards)))
+
+(comment
+  (->> (parse-two-columns kappale-10-2)
+       (questions-to-flash-cards 1 0))
   ) ;; TODO: remove me
