@@ -1738,7 +1738,18 @@ Kymmentä vaille kaksi.")
        (sanakysymykset)
        (flash-cards)))
 
+(defn parse-single-column [string]
+  (->> string
+       (string/split-lines)
+       (map string/trim)
+       (remove empty?)
+       (apply kysymykset)))
+
 (comment
+  (->> (parse-single-column kappale-10)
+       (questions-to-flash-cards 5 0))
+
   (->> (parse-two-columns kappale-10-2)
-       (questions-to-flash-cards 1 0))
-  ) ;; TODO: remove me
+       (questions-to-flash-cards 5 0))
+
+  )
