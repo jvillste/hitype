@@ -6,7 +6,7 @@
             [clojure.java.io :as io]
             [flow-gl.graphics.buffered-image :as buffered-image]
             [flow-gl.graphics.buffered-image :as buffered-image]
-;;            [fungl.component.text-area :as text-area]
+            ;;            [fungl.component.text-area :as text-area]
             [fungl.dependable-atom :as dependable-atom]
             [fungl.util :as util]
             [hitype.util :as hitype-util]
@@ -69,10 +69,10 @@
 
 (defn text [string & [size color]]
   (visuals/text (str string)
-                 {:color (if color
-                           color
-                           [0 0 0 255])
-                  :font-size (or size 50)})
+                {:color (if color
+                          color
+                          [0 0 0 255])
+                 :font-size (or size 50)})
   #_(visuals/text-area (str string)
                        (if color
                          color
@@ -151,6 +151,7 @@
 (def flat-note-names ["C" "Db" "D" "Eb" "E" "F" "Gb" "G" "Ab" "A" "Bb" "B"])
 (def major [2 2 1 2 2 2 1])
 (def minor [2 1 2 2 1 2 2])
+(def blues [3 2 1 1 3 2])
 
 (def note-index-to-name (into {} (map-indexed vector note-names)))
 (def note-index-to-flat-name (into {} (map-indexed vector flat-note-names)))
@@ -305,12 +306,12 @@
                                                                      255])
                                    :height line-gap))
                           (when shaded-background?
-                              (assoc (visuals/rectangle-2 :fill-color [out-of-scale-shade
-                                                                       out-of-scale-shade
-                                                                       out-of-scale-shade
-                                                                       255])
-                                     :height line-gap
-                                     :width 30))))))
+                            (assoc (visuals/rectangle-2 :fill-color [out-of-scale-shade
+                                                                     out-of-scale-shade
+                                                                     out-of-scale-shade
+                                                                     255])
+                                   :height line-gap
+                                   :width 30))))))
 
 (defn quantisize [resolution length]
   (* resolution
@@ -338,7 +339,7 @@
                      middle-c)
                   line-gap))
          :width (- (* (- (:end note)
-                           (:start note))
+                         (:start note))
                       (* 4 sexteenth-note-width))
                    2)
          :height line-gap))
@@ -434,7 +435,7 @@
                             gap)
                  :height (- pad-width
                             gap))
-          (when (in-scale? major pitch)
+          (when (in-scale? #_blues minor #_major pitch)
             (assoc (visuals/rectangle-2 :fill-color (if (= 0 (note pitch))
                                                       [200 100 100 255]
                                                       (gray 200)))
@@ -455,10 +456,8 @@
                        half-gap
                        (* y pad-width)))))))))
 
-
-
 (defn chord-grid [key scale chord-number]
-  (let [row-interval 5]
+  (let [row-interval 6]
     (layouts/superimpose
      (grid {:row-interval row-interval})
      (pitch-highlights (let [chord-notes (chord-notes key scale chord-number)
@@ -474,18 +473,26 @@
                        {:fill-color [0 255 0 255]
                         :row-interval row-interval}))))
 
-(defn chord-view []
-  (let [scale 0.5]
-    (layouts/flow
-     (for [chord (range 1 8)]
-       (layouts/with-margins 10 10 10 10
-         (layouts/scale scale scale
-                       [chord-grid 1 major chord])))))
+(defn scaled-chord-grid [scale chord]
+  (layouts/scale scale scale
+                 (chord-grid 1 major chord)))
 
-  #_(layouts/superimpose
-     [chord-grid 1 major 1]
-     (pitch-highlights @pressed-keys
-                       {:fill-color [255 0 0 255]})))
+(defn chord-view []
+  #_(let [scale 0.5]
+      (layouts/flow
+       (for [chord (range 1 8)]
+         (layouts/with-margins 10 10 10 10
+           [scaled-chord-grid scale chord]
+           #_(layouts/scale scale scale
+                            [chord-grid 1 major chord])))))
+
+  (let [scale 0.7]
+    (layouts/scale scale scale
+                   (layouts/superimpose
+                    [grid]
+                    #_[chord-grid 1 minor 1]
+                    (pitch-highlights @pressed-keys
+                                      {:fill-color [255 0 0 255]})))))
 
 (defn measure [minimum-pitch maximum-pitch]
   (layouts/with-maximum-size (* 16 sexteenth-note-width) nil
@@ -502,18 +509,18 @@
                                            (- maximum-pitch
                                               minimum-pitch)))
                          (for [pitch (range minimum-pitch
-                                              (inc maximum-pitch))]
-                             (-> (text (str (get note-names
-                                                 (note pitch))
-                                            (if (= 0 (note pitch))
-                                              (octave-number pitch)))
-                                       (* line-gap 0.9)
-                                       [note-name-shade note-name-shade note-name-shade 255])
-                                 (assoc :y
-                                        (+ 1
-                                           (* line-gap
-                                              (- maximum-pitch
-                                                 pitch)))))))))
+                                            (inc maximum-pitch))]
+                           (-> (text (str (get note-names
+                                               (note pitch))
+                                          (if (= 0 (note pitch))
+                                            (octave-number pitch)))
+                                     (* line-gap 0.9)
+                                     [note-name-shade note-name-shade note-name-shade 255])
+                               (assoc :y
+                                      (+ 1
+                                         (* line-gap
+                                            (- maximum-pitch
+                                               pitch)))))))))
 
 (comment
   (quot 10 5)
@@ -552,19 +559,19 @@
                                   :height line-gap)))))
 
 #_(def notes
-  #_(->> (tracks "/Users/jukka/Downloads/The_Final_Countdown_-_Piano.mid"
-                        #_"/Users/jukka/google-drive/jukka/music/testi.mid")
-                (drop 0)
-                (first)
-                #_(map (partial quantisize-note
-                                (/ 1 8)))
-                (take-while (fn [note]
-                              (< (:start note)
-                                 (* 6 4)))))
+    #_(->> (tracks "/Users/jukka/Downloads/The_Final_Countdown_-_Piano.mid"
+                   #_"/Users/jukka/google-drive/jukka/music/testi.mid")
+           (drop 0)
+           (first)
+           #_(map (partial quantisize-note
+                           (/ 1 8)))
+           (take-while (fn [note]
+                         (< (:start note)
+                            (* 6 4)))))
 
 
 
-  )
+    )
 
 (def notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
                                               #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
@@ -589,9 +596,10 @@
       (first (.getChannels synthesizer)))))
 
 (comment
-  
+
   (midi/midi-handle-events (midi/midi-in "LinnStrument MIDI")
                            #'handle-midi-message)
+
   (midi/midi-handle-events (midi/midi-in  "Launchpad X LPX MIDI Out")
                            #'handle-midi-message)
 
@@ -615,13 +623,13 @@
 
 (deftest test-notes-by-bar
   (is (= '{0 ({:start 1, :end 2})}
-       (notes-by-bar [{:start 1
-                       :end 2}])))
+         (notes-by-bar [{:start 1
+                         :end 2}])))
 
   (is (= '{0 ({:start 1, :end 5}),
            1 ({:start 1, :end 5})}
-       (notes-by-bar [{:start 1
-                       :end 5}]))))
+         (notes-by-bar [{:start 1
+                         :end 5}]))))
 
 (defn bar-number [time]
   (int (/ time 4)))
@@ -669,7 +677,7 @@
 
 (defn piano-note-off [note]
   (.noteOff channel
-           note))
+            note))
 
 (defn- beat-time-now [play-start-time beats-per-minute]
   (float (* (/ (- (System/currentTimeMillis)
@@ -696,8 +704,8 @@
                                    (>= end-time
                                        (beat-time-now))
                                    #_(>= last-bar
-                                       (Math/ceil (/ (beat-time-now)
-                                                     4))))
+                                         (Math/ceil (/ (beat-time-now)
+                                                       4))))
 
                          (let [playing-notes-set (set (playing-notes notes-by-bar
                                                                      (beat-time-now)))]
@@ -796,7 +804,7 @@
           )))
 
 #_(defn handle-keyboard-event [state-atom _scene-graph event]
-  (#'handle-keyboard-event2 state-atom event))
+    (#'handle-keyboard-event2 state-atom event))
 
 (defn note-number [x y]
   (+ x (* y 8)))
@@ -871,7 +879,7 @@
   (prn "----------------") ;; TODO: remove-me
 
   (reset! event-channel-atom (application/start-application ;; #'ui
-;;                              #'grid
+                              ;; #'grid
                               #'chord-view
                               :on-exit #(reset! event-channel-atom nil)
                               :do-profiling true)))
