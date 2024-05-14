@@ -23,7 +23,8 @@
             [overtone.midi :as midi]
             [overtone.midi.file :as midi-file]
 
-            )
+
+            [clojure.string :as string])
   (:import java.util.concurrent.PriorityBlockingQueue
            ;;           [org.apache.commons.net.ntp TimeStamp]
            (javax.sound.midi Sequencer Synthesizer
@@ -137,12 +138,25 @@
 
   ) ;; TODO: remove-me
 
+;; (def line-shade 50)
+;; (def line-color [line-shade line-shade line-shade 255])
+;; (def note-shade 220 )
+;; (def bacground-color [0 0 0 255])
+;; (def middle-finger-shade 70)
+
+(def line-shade 0)
+(def line-color [line-shade line-shade line-shade 255])
+(def note-shade 20 )
+(def bacground-color [255 255 255 255])
+(def middle-finger-shade 170)
+
+(def pressed-note-color [200 200 255 255])
 (def middle-c 60)
 (def sexteenth-note-width 40)
 (def line-width 2)
 (def line-gap (/ sexteenth-note-width 1.4))
 (def row-height (* 5 line-gap))
-(def middle-finger-shade 230)
+
 (def note-name-shade 40)
 (def out-of-scale-shade 170)
 (def gray-line-shade 240)
@@ -275,28 +289,88 @@
   (is (= '("D" "F#" "A")
          (map note-name (chord-notes 3 major 1)))))
 
+(def notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_dash_-_Electroman_adventures.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Nausica_of_the_Valley_of_the_Wind_-_The_Days_Long_Gone__Nausicas_Theme.mid"
+                                              #_"/Users/jukka/Downloads/IRON_MAN_02.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/The_Final_Countdown_-_Piano.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_Dash_Medley.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/testi.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/mid/nemo nightwish.mid"
+                                              #_"/Users/jukka/google-drive/jukka/music/mid/Popcorn.mid"
+                                              "/Users/jukka/google-drive/jukka/music/mid/FINLAND.MID"
+                                              #_"/Users/jukka/google-drive/jukka/music/mid/Among_Drip.mid")
+
+                                      ;; (apply concat)
+                                      ;; (sort-by :start)
+                                      (drop 1)
+                                      (first)
+                                      #_(map (partial quantisize-note
+                                                      (/ 1 8))))))
+
+(defn best-fitting-scales [notes]
+  (->> (for [scale [{:name "major"
+                     :intervals major}
+                    {:name "minor"
+                     :intervals minor}]
+             root-index (range 12)]
+         {:root-index root-index
+          :key (note-index-to-name root-index)
+          :scale scale
+          :hit-ratio (float (/ (->> notes
+                                    (map :pitch)
+                                    (filter (partial in-key? (:intervals scale) root-index))
+                                    (count))
+                               (count notes)))})
+       (sort-by :hit-ratio)
+       (reverse)
+       (take 5)))
+
+(def scales (best-fitting-scales @notes))
+
 (defn line [pitch]
   (layouts/superimpose (let [number-in-row (mod (+ pitch 0) 6)
                              fat? (contains? ;;  #{ 1 2 3 4 }
                                    #{ 0 }
                                    number-in-row)
-                             shaded-background? (not (in-scale? major pitch))
+                             shaded-background? (not (in-scale?
+                                                      (:intervals (:scale (first scales)))
+                                                      (- pitch
+                                                         (:root-index (first scales)))
+                                                      ;;major pitch
+                                                      ))
                              #_(contains? #{1}
                                           #_#{0 2}
                                           number-in-row)
-                             line-width (if fat?
-                                          (* 1 line-width)
-                                          line-width)]
+                             line-width (cond (= 0 (mod pitch 12))
+                                              (* 3 line-width)
+
+                                              (= 0 (mod pitch 6))
+                                              (* 1 line-width)
+
+                                              :else
+                                              (* 2 line-width))
+                             light-fat-line-shade 120]
                          (layouts/superimpose
-                          (assoc (visuals/rectangle-2 :fill-color (if fat?
-                                                                    [fat-line-shade
-                                                                     fat-line-shade
-                                                                     fat-line-shade
-                                                                     255]
-                                                                    [gray-line-shade
-                                                                     gray-line-shade
-                                                                     gray-line-shade
-                                                                     255]))
+                          (assoc (visuals/rectangle-2 :fill-color (cond (= 0 (mod pitch 12))
+                                                                        [fat-line-shade
+                                                                         fat-line-shade
+                                                                         fat-line-shade
+                                                                         255]
+
+                                                                        (= 0 (mod pitch 6))
+                                                                        [light-fat-line-shade
+                                                                         light-fat-line-shade
+                                                                         light-fat-line-shade
+                                                                         255]
+
+                                                                        :else
+                                                                        [gray-line-shade
+                                                                         gray-line-shade
+                                                                         gray-line-shade
+                                                                         255]))
                                  :y line-gap
                                  :height line-width)
                           (when (#{2 3} number-in-row)
@@ -330,9 +404,7 @@
       (update :end (partial quantisize resolution))))
 
 (defn note-view [note]
-  (assoc (visuals/rectangle-2 :fill-color (if (= 1 (:number-in-scale note))
-                                            [200 100 100 255]
-                                            [0 0 0 255]))
+  (assoc (visuals/rectangle-2 :fill-color [note-shade note-shade note-shade 255])
          :x (* (:start note)
                (* 4 sexteenth-note-width))
          :y (- (* (- (:pitch note)
@@ -365,7 +437,7 @@
      (/ (scale-mark-width pad-width)
         2)))
 
-(def pad-width 120)
+(def pad-width 100)
 
 (def default-grid-options {:first-pitch (+ 12 6)
                            :row-interval 6
@@ -425,8 +497,8 @@
          (layouts/superimpose
           (assoc (visuals/rectangle-2 :fill-color #_(gray 255)
                                       (if (= 0 (mod (octave-number pitch) 2))
-                                        (gray 255)
-                                        (gray 230)))
+                                        (gray 155)
+                                        (gray 130)))
                  :x (+ half-gap
                        (* x pad-width))
                  :y (+ half-gap
@@ -435,19 +507,28 @@
                             gap)
                  :height (- pad-width
                             gap))
-          (when (in-scale? #_blues minor #_major pitch)
-            (assoc (visuals/rectangle-2 :fill-color (if (= 0 (note pitch))
-                                                      [200 100 100 255]
-                                                      (gray 200)))
-                   :x (note-mark-coordinate pad-width x)
-                   :y (note-mark-coordinate pad-width y)
-                   :width  scale-mark-width
-                   :height scale-mark-width))
+          (when #_(in-scale? major #_(:intervals (:scale (first scales)))
+                             (- pitch
+                                0 #_(:root-index (first scales)))
+                             ;;_blues minor #_major pitch
+                             )
+                (in-scale? minor #_major #_(:intervals (:scale (first scales)))
+                           (- pitch
+                              0 #_(:root-index (first scales)))
+                           ;;_blues minor #_major pitch
+                           )
+                (assoc (visuals/rectangle-2 :fill-color (if (= 0 (note pitch))
+                                                          [200 100 100 255]
+                                                          (gray 200)))
+                       :x (note-mark-coordinate pad-width x)
+                       :y (note-mark-coordinate pad-width y)
+                       :width  scale-mark-width
+                       :height scale-mark-width))
           (assoc (text (str (get note-names
                                  (note pitch))
                             #_(octave-number pitch))
-                       (/ pad-width 5)
-                       (gray 140)
+                       (/ pad-width 3)
+                       (gray 240)
                        )
                  :x (+ 2
                        half-gap
@@ -492,7 +573,7 @@
                     [grid]
                     #_[chord-grid 1 minor 1]
                     (pitch-highlights @pressed-keys
-                                      {:fill-color [255 0 0 255]})))))
+                                      {:fill-color pressed-note-color})))))
 
 (defn measure [minimum-pitch maximum-pitch]
   (layouts/with-maximum-size (* 16 sexteenth-note-width) nil
@@ -502,7 +583,7 @@
                                   :y (* (- maximum-pitch
                                            pitch)
                                         line-gap)))
-                         (assoc (visuals/rectangle-2 :fill-color [0 0 0 255])
+                         (assoc (visuals/rectangle-2 :fill-color line-color)
                                 :x (dec (* sexteenth-note-width 16))
                                 :width line-width
                                 :height (* line-gap
@@ -522,9 +603,7 @@
                                             (- maximum-pitch
                                                pitch)))))))))
 
-(comment
-  (quot 10 5)
-  ) ;; TODO: remove-me
+(def measure-count 6)
 
 (defn measures [measure-count minimum-pitch maximum-pitch]
   (layouts/horizontally-2 {}
@@ -532,12 +611,12 @@
                                   [measure minimum-pitch
                                    maximum-pitch]))  )
 (defn stave [notes]
-  (let [minimum-pitch (- middle-c (* 2 12)) #_(apply min (map :pitch notes))
+  (let [minimum-pitch (- middle-c (* 1 12)) #_(apply min (map :pitch notes))
         maximum-pitch (+ middle-c (* 2 12)) #_(apply max (map :pitch notes))
         first-note-start-time (:start (first notes))
-        measure-count 4 #_(/ (- (apply max (map :end notes))
-                                first-note-start-time)
-                             4)]
+        measure-count measure-count #_(/ (- (apply max (map :end notes))
+                                            first-note-start-time)
+                                         4)]
     (layouts/superimpose [measures measure-count minimum-pitch maximum-pitch ]
                          #_(for [measure-number (range measure-count)]
                              (assoc (measure minimum-pitc´h
@@ -550,7 +629,7 @@
                                          16
                                          sexteenth-note-width)))
                          (for [pressed-pitch @pressed-keys]
-                           (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
+                           (assoc (visuals/rectangle-2 :fill-color pressed-note-color)
                                   :y (- (* (- maximum-pitch middle-c)
                                            line-gap)
                                         (* (- pressed-pitch middle-c)
@@ -573,19 +652,9 @@
 
     )
 
-(def notes (dependable-atom/atom (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_dash_-_Electroman_adventures.mid"
-                                              "/Users/jukka/google-drive/jukka/music/Nausica_of_the_Valley_of_the_Wind_-_The_Days_Long_Gone__Nausicas_Theme.mid"
-                                              #_"/Users/jukka/Downloads/IRON_MAN_02.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/The_Final_Countdown_-_Piano.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/Geometry_Dash_Medley.mid"
-                                              #_"/Users/jukka/google-drive/jukka/music/testi.mid")
-                                      (drop 0)
-                                      (first)
-                                      #_(map (partial quantisize-note
-                                                      (/ 1 8))))))
+
+
+
 
 (defonce channel
   (let [synthesizer (MidiSystem/getSynthesizer)]
@@ -596,6 +665,7 @@
       (first (.getChannels synthesizer)))))
 
 (comment
+  (first (tracks "/Users/jukka/google-drive/jukka/music/mid/nemo nightwish.mid"))
 
   (midi/midi-handle-events (midi/midi-in "LinnStrument MIDI")
                            #'handle-midi-message)
@@ -832,38 +902,52 @@
         notes-in-view (->> @notes
                            (drop-while (fn [note]
                                          (< (:start note)
-                                            (* 4 (:first-bar-in-view state)))))
+                                            (* measure-count (:first-bar-in-view state)))))
                            (take-while (fn [note]
                                          (< (:start note)
-                                            (* 4 (+ (:first-bar-in-view state)
-                                                    4))))))]
-    (prn 'state state) ;; TODO: remove me
+                                            (* measure-count (+ (:first-bar-in-view state)
+                                                                4))))))]
 
     (when (:playing? state)
       (animation/swap-state! animation/set-wake-up 1)
       @animation/state-atom)
 
-    (layouts/superimpose (visuals/rectangle-2 :fill-color [255 255 255 255])
+    (layouts/superimpose (visuals/rectangle-2 :fill-color bacground-color)
                          (layouts/vertically-2
                           {:margin 10}
-                          (layouts/superimpose
-                           [stave notes-in-view
-                            #_(for [n (range 8)]
-                                (let [note (note-in-scale 0 major n)]
-                                  {:pitch note
-                                   :number-in-scale (inc (mod n 7))
-                                   :start (* 2 n)
-                                   :duration 2}))]
-                           (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
-                                  :x (* (+ (:play-head-position state)
-                                           (if (:playing? state)
-                                             (beat-time-now (:play-start-time state)
-                                                            (:beats-per-minute state))
-                                             0))
-                                        (* sexteenth-note-width 4))
-                                  :width 4
-                                  :height (* 50 line-gap)))
-                          (text (pr-str (:beats-per-minute state)))))))
+
+                          (layouts/scale 0.8 0.8
+                                         (layouts/vertically-2
+                                          {:margin 10}
+                                          (layouts/superimpose
+                                           [stave notes-in-view
+                                            #_(for [n (range 8)]
+                                                (let [note (note-in-scale 0 major n)]
+                                                  {:pitch note
+                                                   :number-in-scale (inc (mod n 7))
+                                                   :start (* 2 n)
+                                                   :duration 2}))]
+                                           (assoc (visuals/rectangle-2 :fill-color [0 0 200 55])
+                                                  :x (* (+ (:play-head-position state)
+                                                           (if (:playing? state)
+                                                             (beat-time-now (:play-start-time state)
+                                                                            (:beats-per-minute state))
+                                                             0))
+                                                        (* sexteenth-note-width 4))
+                                                  :width 4
+                                                  :height (* 50 line-gap)))
+                                          (text (str (pr-str (:beats-per-minute state))
+                                                     " "
+                                                     (string/join " " (for [scale (take 2 scales)]
+                                                                        (str (:key scale)
+                                                                             " "
+                                                                             (-> scale :scale :name))))))))
+                          (layouts/scale 1 1
+                                         (layouts/superimpose
+                                          [grid]
+                                          #_[chord-grid 1 minor 1]
+                                          (pitch-highlights @pressed-keys
+                                                            {:fill-color [255 0 0 255]})))))))
 
 (defn ui []
   (let [state-atom (dependable-atom/atom {:first-bar-in-view 0
@@ -878,9 +962,10 @@
 (defn start []
   (prn "----------------") ;; TODO: remove-me
 
-  (reset! event-channel-atom (application/start-application ;; #'ui
-                              ;; #'grid
-                              #'chord-view
+  (reset! event-channel-atom (application/start-application
+                              #'ui
+                              #_#'grid
+                              ;; #'chord-view
                               :on-exit #(reset! event-channel-atom nil)
                               :do-profiling true)))
 
@@ -893,7 +978,7 @@
   ) ;; TODO: remove-me
 
 (defn handle-midi-message [midi-message]
-  (prn midi-message) ;; TODO: remove-me
+  ;; (prn midi-message) ;; TODO: remove-me
 
   (cond (= :note-on (:command midi-message))
         (do
@@ -929,6 +1014,7 @@
        (:root-index)))
 
 
+
 (comment
 
   (do (println (.ntpValue (TimeStamp/getNtpTime (long (+ 100 (live/now))))))
@@ -948,9 +1034,10 @@
   (midi/midi-devices)
   (do (reset! notes
               (->> (tracks #_"/Users/jukka/Downloads/tassako_taa_oli.mid"
-                           #_"/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
-                           "/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
-                           #_"/Users/jukka/google-drive/jukka/music/testi.mid")
+                           "/Users/jukka/google-drive/jukka/music/Believer_-_Imagine_Dragons_Advanced.mid"
+                           #_"/Users/jukka/google-drive/jukka/music/Hatsune_Miku_Ivean_Polkka.mid"
+                           #_"/Users/jukka/google-drive/jukka/music/testi.mid"
+                           )
                    (drop 0)
                    (first)
                    #_(map (partial quantisize-note
@@ -963,9 +1050,52 @@
                                                #_major
                                                (first (tracks "/Users/jukka/Downloads/tassako_taa_oli.mid"))))
 
+
+
+  (best-fitting-scales (->> (tracks "/Users/jukka/google-drive/jukka/music/mid/nemo nightwish.mid")
+                            (apply concat)
+                            (sort-by :start)))
+
   (def synth (midi/midi-out))
   (do (midi/midi-note-on synth 40 100)
       (Thread/sleep 500)
       (midi/midi-note-off synth 0))
+
+  (reset! p)
+
+
+  (let [reading-frequency 1000
+        junctions (* 48 16)
+        pics 8
+        resolution 256
+        clock-frequency 4E6]
+    {:time-to-measure-and-read (* (float (* (/ 1
+                                               reading-frequency
+                                               junctions)
+                                            pics))
+                                  1E6)
+     :time-it-takes-to-read (float (* (/ resolution
+                                         clock-frequency)
+                                      1E6))})
+  ;; => {:time-to-measure-and-read 10.416666555101983,
+  ;;     :time-it-takes-to-read 64.0}
+
+  (let [reading-frequency 1000
+        junctions (* 48 16)
+        pics 1
+        resolution 128
+        clock-frequency 40E6]
+    {:time-to-measure-and-read (* (float (* (/ 1
+                                               reading-frequency
+                                               junctions)
+                                            pics))
+                                  1E6)
+     :time-it-takes-to-read (float (* (/ resolution
+                                         clock-frequency)
+                                      1E6))})
+
+  ;; => {:time-to-measure-and-read 1.302083319387748,
+  ;;     :time-it-takes-to-read 3.2}
+
 
   ) ;; TODO: remove-me

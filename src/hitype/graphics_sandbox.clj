@@ -168,7 +168,7 @@
                   #_font
                   (if koko
                     (font/create-by-name "SansSerif" (* 2 koko))
-                    (font/create-by-name "SansSerif" 30))
+                    (font/create-by-name "SansSerif" 50))
                   #_(visuals/default-font) #_(visuals/liberation-sans-regular (or koko 50))))
 
 (defn- assoc-if-not-nil [map key value]
@@ -376,7 +376,7 @@
                                  50 [luku 0 50]))
                        (luvut 1 100))))
 
-  (piirrä (vierekkäin (kuva "kissa.jpg" (edes-takas 100 200 2 (aika)))
+  (piirrä (vierekkäin (kuva "kissa.jpg" (edes-takas 100 600 20 (aika)))
                       (kuva "kissa.jpg" (edes-takas 100 200 2 (+ 1 (aika))))))
 
   (piirrä (teksti (int (aika))))
@@ -385,7 +385,7 @@
 
   (piirrä #_(vierekkäin (allekkain (pumppaa "kissa.jpg" 0 2))
                         (allekkain (pumppaa "marsu2.jpg" 0 2)))
-          (vierekkäin (allekkain (pumppaa "marsu.jpg" 0  1))
+          (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 1))
                       (rivitä (pumppaa "kissa.jpg" 5 1))))
 
 
@@ -1173,6 +1173,8 @@ a turn"]
 
             :näppäimistökäsittelijä
             (funktio [tapahtuma]
+                     (prn '(:näyttökerrat tila) (:näyttökerrat tila)) ;; TODO: remove me
+
                      (if (and (= :kysymys (:tila (hae tila)))
                               (= "k" (:merkki tapahtuma)))
                        (do (lokita! tila :näytettiin-vastaus)
@@ -1296,8 +1298,8 @@ a turn"]
 
 
 
-
-
+(defmacro jokaiselle [& body]
+  `(for ~@body))
 
 
 
@@ -1343,12 +1345,18 @@ a turn"]
 
   (piirrä (kuva "marsu.jpg"))
 
+  (piirrä (vierekkäin (toista 2 (kuva "marsu.jpg" 400))
+                      (allekkain (kuva "kruunu.jpg" 400)
+                                 (kuva "kissa.jpg" 10000))))
 
-  (piirrä (vierekkäin (kuva "marsu.jpg" 800)
-                      (allekkain (kuva "kruunu.jpg" 800)
-                                 (kuva "kissa.jpg" 800))))
 
-
+  (piirrä (allekkain (jokaiselle [luku (luvut 1 10)]
+                                 (vierekkäin (teksti luku)
+                                             (vierekkäin (toista luku
+                                                                 (allekkain (toista 3
+                                                                                    (kuva "marsu.jpg"
+                                                                                          75)))))
+                                             (teksti (* 3 luku))))))
 
   )
 
@@ -1807,6 +1815,5 @@ Kymmentä vaille kaksi."))
   (questions-to-flash-cards 3
                             (concat kappale-10
                                     kappale-10-2))
-
 
   )

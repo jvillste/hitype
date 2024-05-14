@@ -245,7 +245,7 @@
 
 (defn view-constructor []
   (let [state-atom (dependable-atom/atom (initial-state))]
-    (keyboard/set-focused-event-handler! (fn [event]
+    (keyboard/set-focused-event-handler! (fn [_subtree event]
                                            (handle-event! event state-atom)))
     (start-update-loop state-atom)
 
