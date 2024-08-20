@@ -388,6 +388,31 @@
           (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 1))
                       (rivitä (pumppaa "kissa.jpg" 5 1))))
 
+  (int (* 5 0.7))
+
+  (piirrä (layouts/superimpose
+           (let [liikkeen-määrä 15
+                 keskipiste 400
+                 tärinän-kesto 0.2]
+             (assoc (teksti  (let [texts ["YOU DON'T KNO%"
+                                          "YOU D_N'7 KNOW"
+                                          "YO? DON'L KNOW"
+                                          "YOU DON'P #NOW"]]
+                               (get texts
+                                    (int (* (dec (count texts))
+                                            (mod (* 3.5 (aika))
+                                                 1)))))
+
+                             40 [200 200 200 255])
+                    :x (edes-takas (- keskipiste liikkeen-määrä)
+                                   keskipiste
+                                   tärinän-kesto
+                                   (aika))
+
+                    :y (edes-takas (- keskipiste liikkeen-määrä)
+                                   keskipiste
+                                   (* 0.9 tärinän-kesto)
+                                   (aika))))))
 
   (piirrä (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 1))
                       (rivitä (pumppaa "kissa.jpg" 5 1))))
@@ -405,7 +430,7 @@
 
   (piirrä (allekkain (for [luku (luvut 1 10)]
                        (suorakaide 1000
-                                   (edes-takas 5 100 100
+                                   (edes-takas 5 100 5
                                                (aika))
                                    [(* luku (/ 100 10))
                                     (- 100 (* luku (/ 100 10))) 0]))))
