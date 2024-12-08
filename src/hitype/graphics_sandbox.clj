@@ -291,6 +291,11 @@
                                    mistä
                                    mihin)))
 
+(defn ease-in-out-edes-takas [mistä mihin kesto aika]
+  (float (animation/linear-mapping (animation/ease-in-out-cubic (animation/ping-pong kesto aika))
+                                   mistä
+                                   mihin)))
+
 (defn luvut [mistä mihin]
   (range mistä (inc mihin)))
 
@@ -315,7 +320,7 @@
 
 
 (defn pumppaa [tiedoston-nimi vaihe nopeus]
-  (for [luku (luvut 1 10)]
+  (for [luku (luvut 1 5)]
     (kuva tiedoston-nimi
           (edes-takas 50 300 10 (+ luku
                                    vaihe
@@ -377,7 +382,7 @@
                        (luvut 1 100))))
 
   (piirrä (vierekkäin (kuva "kissa.jpg" (edes-takas 100 600 20 (aika)))
-                      (kuva "kissa.jpg" (edes-takas 100 200 2 (+ 1 (aika))))))
+                      (kuva "kissa.jpg" (edes-takas 100 1000 5 (+ 1 (aika))))))
 
   (piirrä (teksti (int (aika))))
 
@@ -389,6 +394,29 @@
                       (rivitä (pumppaa "kissa.jpg" 5 1))))
 
   (int (* 5 0.7))
+
+  (piirrä (teksti "hello"))
+
+  (piirrä (layouts/superimpose
+           (let [liikkeen-määrä 300
+                 keskipiste 400
+                 tärinän-kesto 2
+                 easing-text (fn [exponent]
+                               (assoc (teksti (str exponent)
+                                              40
+                                              [200 200 200 255])
+                                      :x (float (animation/linear-mapping (animation/exponential-ease-in-out (animation/ping-pong tärinän-kesto (aika))
+                                                                                                             exponent)
+                                                                          (- keskipiste liikkeen-määrä)
+                                                                          keskipiste))
+
+                                      :y keskipiste))]
+             (apply layouts/vertically-2
+                    {}
+                    (for [exponent (range 2 20)]
+                      (easing-text (+ 1
+                                      (* 0.4 exponent))))))))
+
 
   (piirrä (layouts/superimpose
            (let [liikkeen-määrä 15
@@ -414,7 +442,9 @@
                                    (* 0.9 tärinän-kesto)
                                    (aika))))))
 
-  (piirrä (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 1))
+
+
+  (piirrä (vierekkäin (allekkain (pumppaa "marsu.jpg" 0 3))
                       (rivitä (pumppaa "kissa.jpg" 5 1))))
 
 
