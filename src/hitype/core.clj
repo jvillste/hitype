@@ -10,14 +10,14 @@
             [fungl.component.text-area :as text-area]
             [fungl.layouts :as layouts]
             [clojure.test :refer :all]
-            [flow-gl.opengl.jogl.window :as jogl-window]
+;;            [flow-gl.opengl.jogl.window :as jogl-window]
             [clojure.test :refer [deftest]]
             #_[overtone.live :as live]
             [fungl.dependable-atom :as debendable-atom]
             [flow-gl.gui.keyboard :as keyboard])
   (:import java.util.UUID))
 
-(def original-frames (buffered-image/gif-frames (io/resource "explosion.gif")))
+(def original-frames nil #_(buffered-image/gif-frames (io/resource "explosion.gif")))
 (def frames (vec (concat (drop 7 original-frames)
                          (take 7 original-frames))))
 (comment
@@ -65,7 +65,7 @@
 
 
 (defn bare-text-editor [id text handle-text-change]
-  (text-area/text-area-2 id
+  (text-area/text-area-3 id
                          :style {:color [0 0 0 255]
                                  :font  font}
                          :text text
@@ -116,7 +116,7 @@
                                                                       character-index)))))))))))
 
 (defn start []
-  (application/start-window #'view)
+  (application/start-application #'view)
   #_(application/start-window (hitype)
                             :window
                             (jogl-window/create 600 1000
