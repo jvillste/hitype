@@ -55,8 +55,8 @@
 (defn tapahtuman-kuvaus [kuvaus]
   (teksti kuvaus tekstin-koko (:event-description-color theme)))
 
-(defn komentonäkymä [maailma]
-  (for [[näppäin komento] (komentokartta (mahdolliset-komennot maailma))]
+(defn komentonäkymä [komennot]
+  (for [[näppäin komento] (komentokartta komennot)]
     (nappi (str (.toUpperCase näppäin) " : " (:kuvaus komento)))))
 
 (defn world-view [maailma]
@@ -72,7 +72,10 @@
                                                              (tapahtuman-kuvaus (str "Sait " (:kokemuspisteet maailma) " kokemuspistettä " (dec (:pelivuoro maailma)) " pelivuorossa!"))
                                                              (tapahtuman-kuvaus (str "Se on " (int (/ (:kokemuspisteet maailma)
                                                                                                       (dec (:pelivuoro maailma)))) " pistettä per vuoro.")))
-                                       (komentonäkymä maailma)]
+                                       (komentonäkymä {:tunnus :roll
+                                                       :kuvaus "Roll"
+                                                       :toteutus (fn [_maailma]
+                                                                   (alusta-maailma))})]
                                       [(teksti (:nimi paikka) (* 2 tekstin-koko))
                                        (layouts/vertically-2 {:margin 10}
                                                              (tapahtuman-kuvaus (:tapahtuman-kuvaus maailma))
@@ -99,17 +102,56 @@
 
 
 (defn näppäimistökäsittelijä [state-atom _node event]
-  (when (= :key-released (:type event))
-    (when-let [komento (get (komentokartta (mahdolliset-komennot @state-atom))
-                            (str (:character event)))]
-      (swap! state-atom (partial aja-komento komento)))))
+  (prn event))
+
+(defn edes-takas [mistä mihin kesto aika]
+  (float (animation/linear-mapping (animation/ping-pong kesto aika)
+                                   mistä
+                                   mihin)))
+
+(defn round2
+  "Round a double to the given precision (number of significant digits)
+  From https://stackoverflow.com/questions/10751638/clojure-rounding-to-decimal-places"
+  [precision d]
+  (let [factor (Math/pow 10 precision)]
+    (/ (Math/round (* d factor)) factor)))
+
+(defn aika []
+  (animation/swap-state! animation/start-if-not-running :aika)
+  (round2 2 (float (animation/phase! :aika))))
+
+(defn rare-animation []
+  (layouts/superimpose (let [liikkeen-määrä 15
+                             keskipiste 400
+                             tärinän-kesto 0.2]
+                         (assoc (teksti  (let [texts ["YOU DON'T KNO%"
+                                                      "YOU D_N'7 KNOW"
+                                                      "YO? DON'L KNOW"
+                                                      "YOU DON'P #NOW"]]
+                                           (get texts
+                                                (int (* (dec (count texts))
+                                                        (mod (* 3.5 (aika))
+                                                             1)))))
+
+                                         100 [50 50 20 100])
+                                :x (edes-takas (- keskipiste liikkeen-määrä)
+                                               keskipiste
+                                               tärinän-kesto
+                                               (aika))
+
+                                :y (edes-takas (- keskipiste liikkeen-määrä)
+                                               keskipiste
+                                               (* 0.9 tärinän-kesto)
+                                               (aika))))))
 
 (defn root-view []
-  (let [state-atom (atom (alusta-maailma))]
+  (let [state-atom (atom {})]
+    (keyboard/set-focused-event-handler! (partial näppäimistökäsittelijä
+                                                  state-atom))
     (fn []
-      (keyboard/set-focused-event-handler! (partial näppäimistökäsittelijä
-                                                    state-atom))
-      (world-view @state-atom))))
+      (layouts/superimpose (visuals/rectangle-2 :fill-color [0 0 0 255])
+                           (teksti "moi" 200 [50 50 20 100])
+                           #_(rare-animation)))))
 
 (defonce event-channel-atom (atom nil))
 
@@ -123,4 +165,4 @@
 
 (when @event-channel-atom
   (async/>!! @event-channel-atom
-             {:type :foo #_:redraw}))
+             {:type :redraw}))

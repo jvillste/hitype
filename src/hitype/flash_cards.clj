@@ -259,12 +259,12 @@
 (defn start []
   (prn "----------") ;; TODO: remove-me
 
-  (application/start-window view-constructor))
+  (application/start-application view-constructor))
 
 
 (comment
-  (application/start-window (fn []
-                              (visuals/text "haa" {:color [0 0 0 255]})))
+  (application/start-application (fn []
+                                   (visuals/text "haa" {:color [0 0 0 255]})))
 
 
   (with-bindings (application/create-event-handling-state)
@@ -272,7 +272,7 @@
                                500 500 ))
 
   (repeat 10
-        (str "Moi " (read-line)))
+          (str "Moi " (read-line)))
   ) ;; TODO: remove-me
 
 

@@ -94,6 +94,41 @@
                         {:name "common"
                          :probability (- 1 (apply + (map :probability things)))})))
 
+(def all-things-2 (let [things [{:name "common" :probability 100/101}
+                                {:name "uncommon" :probability 1/6}
+                                {:name "rare" :probability 1/16}
+                                {:name "natural" :probability 1/50}
+                                {:name "water" :probability 1/83}
+                                {:name "jackpot" :probability 1/224}
+                                {:name "jackbut" :probability 1/345}
+                                {:name "clock" :probability 1/1766}
+                                {:name "123123" :probability 1/2212}
+                                {:name "elemental" :probability 1/3333}
+                                {:name "40failjackpot40" :probability 1/4444}
+                                {:name "45ripjackpot45" :probability 1/4555}
+                                {:name "nobexotic" :probability 1/9999}
+                                {:name "waterical" :probability 1/20000}
+                                {:name "EXOTIC" :probability 1/99999}
+                                {:name "sailor" :probability 1/100000}
+                                {:name "adventure" :probability 1/120000}
+                                {:name "cat" :probability 1/170000}
+                                {:name "cats" :probability 1/200000}
+                                {:name "too cats" :probability 1/555555}
+                                {:name "EXOTIC APEX" :probability 1/999999}
+                                {:name "un" :probability 1/900000}
+                                {:name "Z4?o3L" :probability 1/4000000}
+                                {:name "yourend." :probability 1/5000000}
+                                {:name "1000101010101001100" :probability 1/1210100}
+                                {:name ".K.imp.N.os.O.siple.W." :probability 1/10000000}
+                                {:name "aaaaaaaaaaaaaaaaaaaaaaaaaaaaathe gugu" :probability 1/3000000}
+                                {:name "DO NOT KNOW" :probability 1/50000000}
+                                ]]
+                    (conj things
+                          {:name "common"
+                           :probability (- 1 (apply + (map :probability things)))})))
+
+(def all-things all-things-2)
+
 (defn random-thing []
   (if-let [thing (weighted-random (for [thing all-things]
                                     [thing (:probability thing)]))]
@@ -101,7 +136,9 @@
     (last all-things)))
 
 (defn start []
-  (loop [things #{}]
+  (loop [roll-number 1
+         things #{}]
+    (println "Roll:" roll-number)
     (println "You have" (if (empty? things)
                           "nothing"
                           (string/join ", " (map :name things))))
@@ -118,8 +155,13 @@
         (let [thing (random-thing)]
           (println)
           (println (str "You got " (:name thing) " (" (:probability thing) ")!"))
-          (recur (conj things thing)))))))
+          (recur (inc roll-number)
+                 (conj things thing)))))))
 
 (comment
   (start)
+
+  (run! (fn [thing]
+          (println (:name thing) (:probability thing)))
+        all-things)
   )

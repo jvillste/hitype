@@ -114,7 +114,7 @@
                                 [0 0 255 255]
                                 (fn []))))
 
-(def roll-rng (load-image "roll-RNG/roll-RNG.png"))
+(def roll-rng (load-image "roll-RNG/menu.png"))
 (defn main []
   #_(apply layouts/vertically
            (interpose {:height 30}

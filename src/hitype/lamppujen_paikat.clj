@@ -310,7 +310,7 @@
                                             #_[255 255 255 255]))))))
 
 (defn start []
-  (application/start-window #'view))
+  (application/start-application #'view))
 
 #_(do
   #_(println (with-out-str (pprint/pprint huone)))

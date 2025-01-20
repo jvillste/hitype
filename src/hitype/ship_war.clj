@@ -1,4 +1,4 @@
-(ns argupedia.ship-war
+(ns hitype.ship-war
   (:require [flow-gl.gui.visuals :as visuals]
             [medley.core :as medley]
             [fungl.application :as application]
@@ -24,13 +24,13 @@
     (throw (ex-info (str "Tiedostoa " file-name " ei löydy")
                     {}))))
 
-(def heroes (load-image "heart.png"))
-(def dragons (load-image "heart.png"))
-(def wheat [(load-image "heart.png")
-            (load-image "heart.png")
-            (load-image "heart.png")])
-(def vino_tyyppi (load-image "heart.png"))
-(def heart (load-image "heart.png"))
+(def heroes (load-image "hero-tiles/heart.png"))
+(def dragons (load-image "hero-tiles/heart.png"))
+(def wheat [(load-image "hero-tiles/heart.png")
+            (load-image "hero-tiles/heart.png")
+            (load-image "hero-tiles/heart.png")])
+(def vino_tyyppi (load-image "hero-tiles/heart.png"))
+(def heart (load-image "hero-tiles/heart.png"))
 
 (defn clip-tile [atlas x y]
   (buffered-image/clip atlas
@@ -41,9 +41,9 @@
                        32 32))
 
 #_(def hero (clip-tile heroes 4 5))
-(def hero (load-image "heart.png") #_vino_tyyppi #_(load-image "hero.png")
+(def hero (load-image "hero-tiles/heart.png") #_vino_tyyppi #_(load-image "hero.png")
   #_(clip-tile heroes 4 4))
-(def dragon (load-image "heart.png") #_heart #_(clip-tile dragons 2 4))
+(def dragon (load-image "hero-tiles/heart.png") #_heart #_(clip-tile dragons 2 4))
 
 (def load-image (memoize load-image))
 

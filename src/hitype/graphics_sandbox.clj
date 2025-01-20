@@ -149,9 +149,14 @@
                 :foreground [244 3 252  255]
                 :instructions [204 3 212  255]})
 
+(def white-mode {:background [255 255 255 255]
+                 :foreground [0 0 0 255]
+                 :instructions [0 0 0 255]})
+
 (def color-theme
-  dark-mode
+  ;;dark-mode
   ;;pink-mode
+  white-mode
   )
 
 (def font (font/create-by-name "SansSerif" 50))
@@ -1413,7 +1418,24 @@ a turn"]
                                                                                           75)))))
                                              (teksti (* 3 luku))))))
 
+  (piirrä (layouts/grid (for [y (range 1 11)]
+                          (for [x (range 1 11)]
+                            (layouts/with-margin 10
+                              (text-area/text (str (if (and (< x y)
+                                                            (not (= x 1)))
+                                                     "xx"
+                                                     (format "%02d" (* x y))))
+                                              [0 0 0 255]
+                                              (font/create-by-name "CourierNewPS-BoldMT"
+                                                                   50)))))))
+
+
+  (font/available-names)
   )
+(comment
+  (format "% 3d" 2)
+  ) ;; TODO: remove me
+
 
 #_(piirrä (allekkain (teksti (aika))
                      (vierekkäin (toista 3 (kuva "marsu.jpg"

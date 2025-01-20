@@ -339,4 +339,4 @@
 
 (defn start []
   (let [view (create-view)]
-   (application/start-window #'create-view)))
+   (application/start-application #'create-view)))
