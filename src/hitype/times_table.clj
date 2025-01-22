@@ -45,7 +45,8 @@
                     (filter #(and (some  #{4} [(:x %) (:y %)])
                                   (<= (:x %)
                                       (:y %))))
-                    (take 1)))
+                    ;;(take 1)
+                    ))
 
 (defn initialize-exercise [state exercise]
   (-> state
@@ -95,7 +96,10 @@
 (defn- game-view  [state]
   (let [finish-phase (or (animation/phase! :finish 2000)
                          0)
-        answer-animation-duration 2000]
+        answer-animation-duration 2000
+        wrong-answer-is-animating? (animation/animating? @animation/state-atom
+                                                         :wrong-answer
+                                                         answer-animation-duration)]
     (layouts/superimpose (visuals/rectangle-2 :fill-color
                                               (:background-color theme))
                          (layouts/center-horizontally
@@ -106,56 +110,55 @@
                                                       (animation/linear-mapping 0 2000))
                               0 0 0
                               (layouts/with-margin 50
-                                (let [{:keys [x y]} (:exercise state)]
-                                  (layouts/vertically-2 {:margin 20 :centered? true}
-                                                        (teksti (str x " * " y))
-                                                        (layouts/grid [(let [wrong-answer-is-animating? (animation/animating? @animation/state-atom
-                                                                                                                              :wrong-answer
-                                                                                                                              answer-animation-duration)]
-                                                                         (map (fn [value]
-                                                                                (layouts/with-margin 10
-                                                                                  (teksti value tekstin-koko
-                                                                                          (if wrong-answer-is-animating?
-                                                                                            (let [right-answer (* (:x (:previous-exercise state))
-                                                                                                                  (:y (:previous-exercise state)))]
-                                                                                              (cond (= right-answer value)
-                                                                                                    [0 150 0 255]
+                                (layouts/vertically-2 {:margin 20 :centered? true}
+                                                      (let [{:keys [x y]} (if wrong-answer-is-animating?
+                                                                            (:previous-exercise state)
+                                                                            (:exercise state))]
+                                                        (teksti (str x " * " y)))
+                                                      (layouts/grid [(map (fn [value]
+                                                                            (layouts/with-margin 10
+                                                                              (teksti value tekstin-koko
+                                                                                      (if wrong-answer-is-animating?
+                                                                                        (let [right-answer (* (:x (:previous-exercise state))
+                                                                                                              (:y (:previous-exercise state)))]
+                                                                                          (cond (= right-answer value)
+                                                                                                [0 150 0 255]
 
-                                                                                                    (= (:previous-answer state)
-                                                                                                       value)
-                                                                                                    [150 0 0 255]
+                                                                                                (= (:previous-answer state)
+                                                                                                   value)
+                                                                                                [150 0 0 255]
 
-                                                                                                    :else
-                                                                                                    (:text-color theme)))
-                                                                                            (:text-color theme)))))
-                                                                              (if wrong-answer-is-animating?
-                                                                                (:previous-options state)
-                                                                                (:options state))))
-                                                                       (map (fn [anser-key]
-                                                                              (layouts/with-margin 10 (teksti (name anser-key))))
-                                                                            answer-keys)])
-                                                        (layouts/horizontally-2 {:margin 50}
-                                                                                (layouts/vertically-2 {:margin 5 :centered? true}
-                                                                                                      (for [exercise (take (/ (count exercises)
-                                                                                                                              2)
-                                                                                                                           exercises)]
-                                                                                                        (teksti (str (:x exercise) " * " (:y exercise)
-                                                                                                                     " : "
-                                                                                                                     (or (get (:points state)
-                                                                                                                              exercise)
-                                                                                                                         0)
-                                                                                                                     #_" pistettä." ))))
-                                                                                (layouts/vertically-2 {:margin 5 :centered? true}
-                                                                                                      (for [exercise (drop (/ (count exercises)
-                                                                                                                              2)
-                                                                                                                           exercises)]
-                                                                                                        (teksti (str (:x exercise) " * " (:y exercise)
-                                                                                                                     " : "
-                                                                                                                     (or (get (:points state)
-                                                                                                                              exercise)
-                                                                                                                         0)
-                                                                                                                     #_" pistettä." )))))
-                                                        (teksti (str "Total: " (apply + (vals (:points state)))))))))))
+                                                                                                :else
+                                                                                                (:text-color theme)))
+                                                                                        (:text-color theme)))))
+                                                                          (if wrong-answer-is-animating?
+                                                                            (:previous-options state)
+                                                                            (:options state)))
+                                                                     (map (fn [anser-key]
+                                                                            (layouts/with-margin 10 (teksti (name anser-key))))
+                                                                          answer-keys)])
+                                                      (layouts/horizontally-2 {:margin 50}
+                                                                              (layouts/vertically-2 {:margin 5 :centered? true}
+                                                                                                    (for [exercise (take (/ (count exercises)
+                                                                                                                            2)
+                                                                                                                         exercises)]
+                                                                                                      (teksti (str (:x exercise) " * " (:y exercise)
+                                                                                                                   " : "
+                                                                                                                   (or (get (:points state)
+                                                                                                                            exercise)
+                                                                                                                       0)
+                                                                                                                   #_" pistettä." ))))
+                                                                              (layouts/vertically-2 {:margin 5 :centered? true}
+                                                                                                    (for [exercise (drop (/ (count exercises)
+                                                                                                                            2)
+                                                                                                                         exercises)]
+                                                                                                      (teksti (str (:x exercise) " * " (:y exercise)
+                                                                                                                   " : "
+                                                                                                                   (or (get (:points state)
+                                                                                                                            exercise)
+                                                                                                                       0)
+                                                                                                                   #_" pistettä." )))))
+                                                      (teksti (str "Total: " (apply + (vals (:points state))))))))))
 
                          (when (animation/running? @animation/state-atom :finish)
                            (layouts/center-horizontally
