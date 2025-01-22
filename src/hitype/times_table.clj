@@ -37,18 +37,21 @@
                      (font/create-by-name "Serif" (or koko tekstin-koko))
                      #_(visuals/liberation-sans-regular (or koko tekstin-koko))))
 
+(def maximum-exercise-points 1)
 
-
-(def exercises (filter #(and (some  #{4} [(:x %) (:y %)])
-                             (<= (:x %)
-                                 (:y %)))
-                       (for [x (range 2 10)
-                             y (range 2 10)]
-                         {:x x :y y})))
+(def exercises (->> (for [x (range 2 10)
+                          y (range 2 10)]
+                      {:x x :y y})
+                    (filter #(and (some  #{4} [(:x %) (:y %)])
+                                  (<= (:x %)
+                                      (:y %))))
+                    (take 1)))
 
 (defn initialize-exercise [state exercise]
   (-> state
-      (assoc :exercise exercise
+      (assoc :previous-exercise (:exercise state)
+             :previous-options (:options state)
+             :exercise exercise
              :options (let [right-answer (* (:x exercise)
                                             (:y exercise))]
                         (->> (repeatedly (fn [] (max 2
@@ -61,7 +64,7 @@
                              (concat [right-answer])
                              (shuffle))))))
 
-(def maximum-exercise-points 3)
+
 
 (defn next-exercise [state]
   (let [candidates (let [unfinished-exercises (remove (fn [exercise]
@@ -90,23 +93,44 @@
   )
 
 (defn- game-view  [state]
-  (let [finish-phase (or (animation/repeating-phase! :finish 2000)
-                         0)]
+  (let [finish-phase (or (animation/phase! :finish 2000)
+                         0)
+        answer-animation-duration 2000]
     (layouts/superimpose (visuals/rectangle-2 :fill-color
                                               (:background-color theme))
                          (layouts/center-horizontally
 
                           (when (> 1 finish-phase)
                             (layouts/with-margins (-> finish-phase
-                                                      (animation/exponential-ease-in 8)
+                                                      (animation/exponential-ease-in 3)
                                                       (animation/linear-mapping 0 2000))
                               0 0 0
                               (layouts/with-margin 50
                                 (let [{:keys [x y]} (:exercise state)]
                                   (layouts/vertically-2 {:margin 20 :centered? true}
                                                         (teksti (str x " * " y))
-                                                        (layouts/grid [(map (fn [value]
-                                                                              (layouts/with-margin 10 (teksti value))) (:options state))
+                                                        (layouts/grid [(let [wrong-answer-is-animating? (animation/animating? @animation/state-atom
+                                                                                                                              :wrong-answer
+                                                                                                                              answer-animation-duration)]
+                                                                         (map (fn [value]
+                                                                                (layouts/with-margin 10
+                                                                                  (teksti value tekstin-koko
+                                                                                          (if wrong-answer-is-animating?
+                                                                                            (let [right-answer (* (:x (:previous-exercise state))
+                                                                                                                  (:y (:previous-exercise state)))]
+                                                                                              (cond (= right-answer value)
+                                                                                                    [0 150 0 255]
+
+                                                                                                    (= (:previous-answer state)
+                                                                                                       value)
+                                                                                                    [150 0 0 255]
+
+                                                                                                    :else
+                                                                                                    (:text-color theme)))
+                                                                                            (:text-color theme)))))
+                                                                              (if wrong-answer-is-animating?
+                                                                                (:previous-options state)
+                                                                                (:options state))))
                                                                        (map (fn [anser-key]
                                                                               (layouts/with-margin 10 (teksti (name anser-key))))
                                                                             answer-keys)])
@@ -131,80 +155,100 @@
                                                                                                                               exercise)
                                                                                                                          0)
                                                                                                                      #_" pistettä." )))))
-                                                        (teksti (str "Yhteensä: " (apply + (vals (:points state)))))))))))
+                                                        (teksti (str "Total: " (apply + (vals (:points state)))))))))))
 
                          (when (animation/running? @animation/state-atom :finish)
                            (layouts/center-horizontally
-                            (assoc (teksti "Valmis!")
+                            (assoc (teksti "Ready!")
                                    :y (animation/linear-mapping (animation/exponential-ease-out finish-phase
                                                                                                 3)
                                                                 -1500
                                                                 300))))
 
-
-                         (when (and (not (:finished? state))
-                                    (animation/running? @animation/state-atom  :right-answer))
+                         (when (animation/animating? @animation/state-atom
+                                                     :right-answer
+                                                     answer-animation-duration)
                            (layouts/center-horizontally
-                            (let [phase (animation/phase! :right-answer 2000)
-                                  color [150 150 150 (- 255
-                                                        (-> (animation/exponential-ease-in phase 2)
-                                                            (animation/linear-mapping 0 155)))]
+                            (let [phase (animation/phase! :right-answer answer-animation-duration)
+                                  color [0 150 0 (- 255
+                                                    (-> (animation/exponential-ease-in phase 2)
+                                                        (animation/linear-mapping 0 155)))]
 
                                   y (- 400 (-> (animation/exponential-ease-out phase 3)
                                                (animation/linear-mapping 0 300)))]
                               (when (> 1 phase)
-                                (layouts/superimpose (assoc (teksti "Jee" 50 color)
+                                (layouts/superimpose (assoc (teksti "Right!" 50 color)
                                                             :x 0
                                                             :y y)
-                                                     (assoc (teksti "Jee" 50 color)
+                                                     (assoc (teksti "Right!" 50 color)
+                                                            :x 500
+                                                            :y y))))))
+
+                         (when (animation/animating? @animation/state-atom
+                                                     :wrong-answer
+                                                     answer-animation-duration)
+                           (layouts/center-horizontally
+                            (let [phase (animation/phase! :wrong-answer answer-animation-duration)
+                                  color [150 0 0 (- 255
+                                                    (-> (animation/exponential-ease-in phase 2)
+                                                        (animation/linear-mapping 0 155)))]
+
+                                  y (+ 100 (-> (animation/exponential-ease-out phase 3)
+                                               (animation/linear-mapping 0 300)))]
+                              (when (> 1 phase)
+                                (layouts/superimpose (assoc (teksti "Wrong!" 50 color)
+                                                            :x 0
+                                                            :y y)
+                                                     (assoc (teksti "Wrong!" 50 color)
                                                             :x 500
                                                             :y y)))))))))
 
-
-(def initial-state {:points (read-string (slurp "time-table-points.edn"))})
+(defn initialize-state []
+  (let [state {} ;; {:points (read-string (slurp "time-table-points.edn"))}
+        ]
+    (initialize-exercise state
+                         (next-exercise state))))
 
 (defn event-handler [state-atom _node event]
   (let [state @state-atom]
     (when (and (= :key-pressed (:type event))
                (some #{(:key event)}
                      answer-keys))
-      (let [{:keys [x y] :as exercise} (:exercise state)
-            right-answer? (= (* x y)
-                             (get (:options state)
-                                  (anwser-key-to-option-index (:key event))))]
-        (when right-answer?
 
-          (animation/swap-state! animation/start :right-answer))
+      (if (:finished? state)
+        (do (animation/swap-state! animation/delete :finish)
+            (reset! state-atom (initialize-state)))
+        (let [answer (get (:options state)
+                          (anwser-key-to-option-index (:key event)))
+              right-answer? (= (* (:x (:exercise state))
+                                  (:y (:exercise state)))
+                               answer)
+              state (update-in state
+                               [:points (:exercise state)]
+                               (if right-answer?
+                                 (fnil inc 0)
+                                 (fnil dec 0)))
+              next-exercise (next-exercise state)
+              finished? (not (some? next-exercise))]
 
-        (swap! state-atom (fn [state]
-                            (let [state (update-in state
-                                                   [:points exercise]
-                                                   (if right-answer?
-                                                     (fnil inc 0)
-                                                     (fnil dec 0)))]
-                              (if-some [exercise (next-exercise state)]
-                                (initialize-exercise state
-                                                     exercise)
-                                (do (animation/swap-state! animation/start :finish)
-;;                                     (.start (Thread. (fn []
-;;                                                        (prn "sleeping")
+          (reset! state-atom
+                  (-> state
+                      (assoc :finished? finished?
+                             :previous-answer answer)
+                      (cond-> (some? next-exercise)
+                        (initialize-exercise next-exercise))))
 
-;;                                                        (Thread/sleep 5000)
-;;                                                        (prn "resetting")
-;;                                                        (try
-;;                                                          (animation/swap-state! animation/delete :finish)
-;;                                                          (catch Exception e
-;;                                                              (prn e) ;; TODO: remove me
-;; ))                                                       (prn "phase " (animation/phase! :finish 1000))
-;;                                                        (reset! state-atom initial-state))))
-                                    (assoc state :finished? true))))))
+          (if finished?
+            (animation/swap-state! animation/start :finish)
+            (if right-answer?
+              (animation/swap-state! animation/start :right-answer)
+              (animation/swap-state! animation/start :wrong-answer)))
 
-        (reset! points-atom (:points @state-atom))))))
+          (reset! points-atom
+                  (:points @state-atom)))))))
 
 (defn root-view []
-  (let [state-atom (atom (let [state initial-state]
-                           (initialize-exercise state
-                                                (next-exercise state))))]
+  (let [state-atom (atom (initialize-state))]
     (fn []
       (let [state @state-atom]
         (keyboard/set-focused-event-handler! (partial event-handler state-atom))
