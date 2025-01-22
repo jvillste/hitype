@@ -136,19 +136,26 @@
                                                                             (layouts/with-margin 10 (teksti (name anser-key))))
                                                                           answer-keys)])
                                                       (let [exercise-ponts-view (fn [exercise]
-                                                                                  (layouts/with-maximum-size 200 nil
-                                                                                    (layouts/superimpose (let [points (or (get (:points state)
-                                                                                                                               exercise)
-                                                                                                                          0)
-                                                                                                               block (fn [fill-color]
-                                                                                                                       (layouts/box 5
-                                                                                                                                    (visuals/rectangle-2 :fill-color nil
-                                                                                                                                                         :draw-color [80 80 80 255]
-                                                                                                                                                         :line-width 2)
-                                                                                                                                    (assoc (visuals/rectangle-2 :fill-color fill-color)
-                                                                                                                                           :width 50
-                                                                                                                                           :height 40)))]
-                                                                                                           (layouts/horizontally-2 {:margin 5}
+                                                                                  (layouts/with-maximum-size 190 nil
+                                                                                    (let [points (or (get (:points state)
+                                                                                                          exercise)
+                                                                                                     0)
+                                                                                          row-height 45
+                                                                                          corner-radius 20
+                                                                                          block (fn [fill-color]
+                                                                                                  (layouts/box 5
+                                                                                                               (visuals/rectangle-2 :fill-color nil
+                                                                                                                                    :draw-color [80 80 80 255]
+                                                                                                                                    :line-width 2
+                                                                                                                                    :corner-arc-radius corner-radius)
+                                                                                                               (assoc (visuals/rectangle-2 :fill-color fill-color
+                                                                                                                                           :corner-arc-radius corner-radius)
+                                                                                                                      :width 50
+                                                                                                                      :height (- row-height
+                                                                                                                                 10))))
+
+                                                                                          ]
+                                                                                      (layouts/superimpose (layouts/horizontally-2 {:margin 5}
                                                                                                                                    (concat (repeat (abs points)
                                                                                                                                                    (block (let [opacity (if (and (or (animation/animating? @animation/state-atom
                                                                                                                                                                                                            :right-answer
@@ -168,9 +175,9 @@
                                                                                                                                                               [80 0 0 opacity]))))
                                                                                                                                            (repeat (- maximum-exercise-points
                                                                                                                                                       (abs points))
-                                                                                                                                                   (block [0 0 0 0])))))
-                                                                                                         (layouts/with-maximum-size nil 50
-                                                                                                           (layouts/center (teksti (str (:x exercise) " * " (:y exercise))))))))]
+                                                                                                                                                   (block [0 0 0 0]))))
+                                                                                                           (layouts/with-maximum-size nil row-height
+                                                                                                             (layouts/center (teksti (str (:x exercise) " * " (:y exercise)))))))))]
                                                         (layouts/horizontally-2 {:margin 50}
                                                                                 (layouts/vertically-2 {:margin 5 :centered? true}
                                                                                                       (for [exercise (take (/ (count exercises)
