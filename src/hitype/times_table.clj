@@ -104,7 +104,14 @@
                         (teksti (str "Total answer points: " (apply + (vals (:points state)))))
                         (teksti (str "Total speed points: " (apply + (map (comp speed-points :duration)
                                                                           (filter :right-answer?
-                                                                                  (:exercise-durations state))))))))
+                                                                                  (:exercise-durations state))))))
+
+                        (teksti (str "Right answers: " (count (filter :right-answer?
+                                                                      (:exercise-durations state)))))
+                        (teksti (str "Wrong answers: " (count (remove :right-answer?
+                                                                      (:exercise-durations state)))))
+                        (teksti (str "Passed execises: " (count (filter #(= % maximum-exercise-points)
+                                                                        (vals (:points state))))))))
 
 (defn- game-view  [state]
   (let [finish-phase (or (animation/phase! :finish 2000)
