@@ -100,6 +100,7 @@
                            1000)))))
 
 (defn scores [state]
+  (animation/swap-state! animation/set-wake-up 1000)
   (layouts/vertically-2 {:margin 10}
                         (teksti (str "Total answer points: " (apply + (vals (:points state)))))
                         (teksti (str "Total speed points: " (apply + (map (comp speed-points :duration)
@@ -111,7 +112,12 @@
                         (teksti (str "Wrong answers: " (count (remove :right-answer?
                                                                       (:exercise-durations state)))))
                         (teksti (str "Passed execises: " (count (filter #(= % maximum-exercise-points)
-                                                                        (vals (:points state))))))))
+                                                                        (vals (:points state))))))
+                        (teksti (str "Time used: " (int (/ (- (if (:finished? state)
+                                                                (:previous-answer-time state)
+                                                                (now))
+                                                              (:start-time state))
+                                                           1000))))))
 
 (defn- game-view  [state]
   (let [finish-phase (or (animation/phase! :finish 2000)
@@ -295,6 +301,7 @@
 (defn initialize-state []
   (let [state {:score 0
                :exercise-durations []
+               :start-time (now)
                } #_{:points (read-string (slurp "lumon-time-table-points.edn"))}
         ]
     (initialize-exercise state
@@ -334,6 +341,7 @@
           (reset! state-atom
                   (-> state
                       (assoc :finished? finished?
+                             :previous-answer-time (now)
                              :previous-answer answer)
                       (cond-> (some? next-exercise)
                         (initialize-exercise next-exercise))))
