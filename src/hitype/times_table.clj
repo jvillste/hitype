@@ -113,11 +113,14 @@
                                                                       (:exercise-durations state)))))
                         (teksti (str "Passed execises: " (count (filter #(= % maximum-exercise-points)
                                                                         (vals (:points state))))))
-                        (teksti (str "Time used: " (int (/ (- (if (:finished? state)
-                                                                (:previous-answer-time state)
-                                                                (now))
-                                                              (:start-time state))
-                                                           1000))))))
+                        (teksti (str "Time used: " (let [seconds (int (/ (- (if (:finished? state)
+                                                                              (:previous-answer-time state)
+                                                                              (now))
+                                                                            (:start-time state))
+                                                                         1000))]
+                                                     (str (int (Math/floor (/ seconds 60)))
+                                                          ":"
+                                                          (mod seconds 60)))))))
 
 (defn- game-view  [state]
   (let [finish-phase (or (animation/phase! :finish 2000)
