@@ -72,7 +72,7 @@
                                                         (<= maximum-exercise-points
                                                             (or (get-in state [:points exercise])
                                                                 0)))
-                                                      exercises)]
+                                                      (:selected-exercises state))]
                      (if (= unfinished-exercises
                             [(:exercise state)])
                        [(:exercise state)]
@@ -211,14 +211,14 @@
                                                                                                              (layouts/center (teksti (str (:x exercise) " * " (:y exercise)))))))))]
                                                         (layouts/horizontally-2 {:margin 50}
                                                                                 (layouts/vertically-2 {:margin 5 :centered? true}
-                                                                                                      (for [exercise (take (/ (count exercises)
+                                                                                                      (for [exercise (take (/ (count (:selected-exercises state))
                                                                                                                               2)
-                                                                                                                           exercises)]
+                                                                                                                           (:selected-exercises state))]
                                                                                                         (exercise-ponts-view exercise)))
                                                                                 (layouts/vertically-2 {:margin 5 :centered? true}
-                                                                                                      (for [exercise (drop (/ (count exercises)
+                                                                                                      (for [exercise (drop (/ (count (:selected-exercises state))
                                                                                                                               2)
-                                                                                                                           exercises)]
+                                                                                                                           (:selected-exercises state))]
                                                                                                         (exercise-ponts-view exercise)))))
 
                                                       (let [corner-radius 20
@@ -316,20 +316,124 @@
                                                             :x 700
                                                             :y y)))))))))
 
+(defn reset-game-state [state]
+  (assoc state
+         :finished? false
+         :exercise nil
+         :exercise-durations []
+         :start-time (now)
+         :points {}))
+
 (defn initialize-state []
-  (let [state {:score 0
+  (let [state {:selected-exercises #{}
                :exercise-durations []
                :start-time (now)
+               :state :menu
                } #_{:points (read-string (slurp "lumon-time-table-points.edn"))}
         ]
-    (initialize-exercise state
-                         (next-exercise state))))
+    state))
+
+(def all-exercises (->> (for [x (range 2 10)
+                              y (range 2 10)]
+
+                          {:x x :y y})
+                        (filter #(<= (:x %)
+                                     (:y %)))))
+
+(defn button [label color on-click!]
+  {:node (layouts/box 10
+                      (visuals/rectangle-2 :fill-color color
+                                           :corner-arc-radius 20)
+                      (teksti label))
+   :mouse-event-handler (fn [_node event]
+                          (when (= :mouse-clicked (:type event))
+                            (on-click!))
+                          event)})
+
+(defn exercise-score [exercise durations]
+  (let [relevant-durations (->> durations
+                                (filter (fn [duration]
+                                          (= exercise (:exercise duration))))
+                                (sort-by :time)
+                                (take-last 10))]
+    (float (/ (reduce +
+                      (map (comp speed-points :duration)
+                           (filter :right-answer? relevant-durations)))
+              10))))
+
+(defn menu-view [state-atom]
+  (let [state @state-atom]
+    (layouts/with-margin 50
+      (layouts/center-horizontally
+       (layouts/vertically-2 {:margin 50}
+                             (layouts/grid (for [row (partition-by :x
+                                                                   all-exercises)]
+                                             (for [exercise row]
+
+                                               {:node (let [selected? (contains? (:selected-exercises state)
+                                                                                 exercise)]
+                                                        (layouts/with-margin 5
+                                                          (layouts/box 5
+                                                                       (visuals/rectangle-2 :fill-color (if selected?
+                                                                                                          [50 180 50 255]
+                                                                                                          [10 10 (* (min 1
+                                                                                                                         (/ (exercise-score exercise (:history state))
+                                                                                                                            5))
+                                                                                                                    255)
+                                                                                                           255])
+                                                                                            :corner-arc-radius 20)
+                                                                       (teksti (str (:x exercise) " * " (:y exercise) " " (exercise-score exercise (:history state))
+                                                                                    )
+                                                                               tekstin-koko
+                                                                               (if selected?
+                                                                                 [0 0 0 255]
+                                                                                 [200 200 200 255])))))
+                                                :mouse-event-handler (fn [_node event]
+                                                                       (when (= :mouse-clicked (:type event))
+                                                                         (let [similar-exercises (filter (fn [available-exercise]
+                                                                                                           (or (= (:x exercise)
+                                                                                                                  (:x available-exercise))
+                                                                                                               (= (:x exercise)
+                                                                                                                  (:y available-exercise))))
+                                                                                                         all-exercises)]
+                                                                           (swap! state-atom update :selected-exercises (fn [selected-exericses]
+                                                                                                                          (if (contains? selected-exericses
+                                                                                                                                         exercise)
+                                                                                                                            (if (:shift event)
+                                                                                                                              (apply disj
+                                                                                                                                     selected-exericses
+                                                                                                                                     similar-exercises)
+                                                                                                                              (disj selected-exericses
+                                                                                                                                    exercise))
+                                                                                                                            (if (:shift event)
+                                                                                                                              (apply conj
+                                                                                                                                     selected-exericses
+                                                                                                                                     similar-exercises)
+                                                                                                                              (conj selected-exericses
+                                                                                                                                    exercise)))))))
+                                                                       event)})))
+                             [button "Play!"
+                              [50 50 50 255]
+                              (fn []
+                                (when (not (empty? (:selected-exercises state)))
+                                  (swap! state-atom (fn [state]
+                                                      (let [state (reset-game-state state)]
+                                                        (-> (initialize-exercise state
+                                                                                 (next-exercise state))
+                                                            (assoc :state :game)))))))])))))
+
+(defn save-game [state]
+  (def state state)
+  (update state :history (fn [history]
+                           (concat (or history [])
+                                   (:exercise-durations state)))))
 
 (defn event-handler [state-atom _node event]
   (let [state @state-atom]
     (when (and (= :key-pressed (:type event))
                (= :escape (:key event)))
-      (reset! state-atom (initialize-state)))
+      (swap! state-atom save-game)
+      (swap! state-atom assoc :state :menu))
     (when (and (= :key-pressed (:type event))
                (some #{(:key event)}
                      answer-keys)
@@ -337,7 +441,8 @@
 
       (if (:finished? state)
         (do (animation/swap-state! animation/delete :finish)
-            (reset! state-atom (initialize-state)))
+            (swap! state-atom save-game)
+            (swap! state-atom assoc :state :menu))
         (let [answer (get (:options state)
                           (anwser-key-to-option-index (:key event)))
               right-answer? (= (* (:x (:exercise state))
@@ -354,7 +459,9 @@
                                        (max (- maximum-exercise-points))
                                        (min maximum-exercise-points)))))
               state (update state :exercise-durations conj
-                            {:duration (- (now)
+                            {:exercise (:exercise state)
+                             :time (now)
+                             :duration (- (now)
                                           (:exercise-start-time state))
                              :right-answer? right-answer?})
               next-exercise (next-exercise state)
@@ -371,7 +478,7 @@
                       (if right-answer?
                         (initialize-exercise state next-exercise)
                         (do (.start (Thread. (fn []
-                                            (Thread/sleep answer-animation-duration)
+                                               (Thread/sleep answer-animation-duration)
                                                (swap! state-atom initialize-exercise next-exercise))))
                             state))
                       state)))
@@ -386,12 +493,15 @@
                   (:points @state-atom)))))))
 
 (defn root-view []
-  (let [state-atom (atom (initialize-state))]
+  (let [state-atom (atom {:selected-exercises #{}
+                          :state :menu})]
     (fn []
       (let [state @state-atom]
         (keyboard/set-focused-event-handler! (partial event-handler state-atom))
 
-        (game-view state)))))
+        (case (:state state)
+          :game (game-view state)
+          :menu (menu-view state-atom))))))
 
 (defonce event-channel-atom (atom nil))
 
