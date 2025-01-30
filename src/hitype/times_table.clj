@@ -7,7 +7,9 @@
    [fungl.application :as application]
    [fungl.layouts :as layouts]
    [flow-gl.graphics.font :as font]
-   [clojure.core.async :as async]))
+   [clojure.core.async :as async]
+   [clojure.set :as set]
+   [medley.core :as medley]))
 
 (def maximum-exercise-points 3)
 
@@ -340,17 +342,17 @@
                         (filter #(<= (:x %)
                                      (:y %)))))
 
-(defn button [label color on-click!]
+(defn button [label fill-color text-color on-click!]
   {:node (layouts/box 10
-                      (visuals/rectangle-2 :fill-color color
+                      (visuals/rectangle-2 :fill-color fill-color
                                            :corner-arc-radius 20)
-                      (teksti label))
+                      (teksti label tekstin-koko text-color))
    :mouse-event-handler (fn [_node event]
                           (when (= :mouse-clicked (:type event))
                             (on-click!))
                           event)})
 
-(defn exercise-score [exercise durations]
+(defn exercise-score [durations exercise]
   (let [relevant-durations (->> durations
                                 (filter (fn [duration]
                                           (= exercise (:exercise duration))))
@@ -361,11 +363,49 @@
                            (filter :right-answer? relevant-durations)))
               10))))
 
+(defn start-game [state-atom]
+  (when (not (empty? (:selected-exercises @state-atom)))
+    (swap! state-atom (fn [state]
+                        (let [state (reset-game-state state)]
+                          (-> (initialize-exercise state
+                                                   (next-exercise state))
+                              (assoc :state :game)))))))
+
+(defn clear-selected-exercises [state-atom]
+  (swap! state-atom assoc :selected-exercises #{}))
+
+
+(defn add-random-exercise [state-atom]
+  (swap! state-atom (fn [state]
+                      (update state :selected-exercises
+                              set/union
+                              (if-let [new-exercise (->> all-exercises
+                                                         (remove (set (:selected-exercises state)))
+                                                         (sort-by (fn [exercise]
+                                                                    [(exercise-score (get-in state [:players (:player state) :history])
+                                                                                     exercise)
+                                                                     (rand)]))
+                                                         (first))]
+                                #{new-exercise}
+                                #{})))))
+
 (defn menu-view [state-atom]
-  (let [state @state-atom]
+  (let [state @state-atom
+        player-history (get-in state [:players (:player state) :history])]
     (layouts/with-margin 50
       (layouts/center-horizontally
        (layouts/vertically-2 {:margin 50}
+                             (layouts/horizontally-2 {:margin 20}
+                                                     (for [player-id (keys (:players state))]
+                                                       (button (get-in state [:players player-id :name])
+                                                               (if (= player-id (:player state))
+                                                                 [50 180 50 255]
+                                                                 [10 10 10 255])
+                                                               (if (= player-id (:player state))
+                                                                 [0 0 0 255]
+                                                                 [150 150 150 255])
+                                                               (fn []
+                                                                 (swap! state-atom assoc :player player-id)))))
                              (layouts/grid (for [row (partition-by :x
                                                                    all-exercises)]
                                              (for [exercise row]
@@ -376,13 +416,15 @@
                                                           (layouts/box 5
                                                                        (visuals/rectangle-2 :fill-color (if selected?
                                                                                                           [50 180 50 255]
-                                                                                                          [10 10 (* (min 1
-                                                                                                                         (/ (exercise-score exercise (:history state))
+                                                                                                          [30 30 (* (min 1
+                                                                                                                         (/ (exercise-score player-history exercise)
                                                                                                                             5))
                                                                                                                     255)
                                                                                                            255])
                                                                                             :corner-arc-radius 20)
-                                                                       (teksti (str (:x exercise) " * " (:y exercise) " " (exercise-score exercise (:history state))
+                                                                       (teksti (str (:x exercise) " * " (:y exercise) (if (:show-scores? state)
+                                                                                                                        (str " " (exercise-score player-history exercise))
+                                                                                                                        "")
                                                                                     )
                                                                                tekstin-koko
                                                                                (if selected?
@@ -412,21 +454,40 @@
                                                                                                                               (conj selected-exericses
                                                                                                                                     exercise)))))))
                                                                        event)})))
-                             [button "Play!"
-                              [50 50 50 255]
-                              (fn []
-                                (when (not (empty? (:selected-exercises state)))
-                                  (swap! state-atom (fn [state]
-                                                      (let [state (reset-game-state state)]
-                                                        (-> (initialize-exercise state
-                                                                                 (next-exercise state))
-                                                            (assoc :state :game)))))))])))))
+                             (layouts/horizontally-2 {:margin 10}
+                                                     [button "Clear"
+                                                      [50 50 50 255]
+                                                      [250 250 250 255]
+                                                      (fn []
+                                                        (clear-selected-exercises state-atom))]
+                                                     [button "Add random"
+                                                      [50 50 50 255]
+                                                      [250 250 250 255]
+                                                      (fn []
+                                                        (add-random-exercise state-atom))]
+                                                     [button "Play!"
+                                                      [50 50 50 255]
+                                                      [250 250 250 255]
+                                                      (fn [] (start-game state-atom))]))))))
+
+(def state-file-name "times-table-state.edn")
+
+(defn select-last-durations-of-each-exercise [durations]
+  (->> (group-by :exercise durations)
+       (medley/map-vals (fn [single-exercise-durations]
+                          (->> single-exercise-durations
+                               (sort-by :time)
+                               (take-last 10))))
+       (vals)
+       (apply concat)))
 
 (defn save-game [state]
-  (def state state)
-  (update state :history (fn [history]
-                           (concat (or history [])
-                                   (:exercise-durations state)))))
+  (let [state (update-in state [:players (:player state) :history] (fn [history]
+                                                                     (select-last-durations-of-each-exercise (concat (or history [])
+                                                                                                                     (:exercise-durations state)))))]
+    (spit state-file-name
+          (prn-str state))
+    state))
 
 (defn event-handler [state-atom _node event]
   (let [state @state-atom]
@@ -434,6 +495,25 @@
                (= :escape (:key event)))
       (swap! state-atom save-game)
       (swap! state-atom assoc :state :menu))
+
+    (when (= :menu (:state state))
+      (when (and (= :key-pressed (:type event))
+                 (= :n (:key event)))
+        (swap! state-atom update :show-scores? not))
+
+      (when (and (= :key-pressed (:type event))
+                 (= :space (:key event)))
+        (start-game state-atom))
+
+      (when (and (= :key-pressed (:type event))
+                 (= :c (:key event)))
+        (clear-selected-exercises state-atom))
+
+      (when (and (= :key-pressed (:type event))
+                 (= :r (:key event)))
+        (add-random-exercise state-atom)))
+
+
     (when (and (= :key-pressed (:type event))
                (some #{(:key event)}
                      answer-keys)
@@ -493,8 +573,13 @@
                   (:points @state-atom)))))))
 
 (defn root-view []
-  (let [state-atom (atom {:selected-exercises #{}
-                          :state :menu})]
+  (let [state-atom (atom (assoc (read-string (slurp state-file-name))
+                                :state :menu)
+                         #_{:selected-exercises #{}
+                            :state :menu
+                            :players {1 {:name "Lumo"}
+                                      2 {:name "Jukka"}}
+                            :player 1})]
     (fn []
       (let [state @state-atom]
         (keyboard/set-focused-event-handler! (partial event-handler state-atom))
