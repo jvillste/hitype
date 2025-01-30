@@ -396,7 +396,7 @@
         player-history (get-in state [:players (:player state) :history])]
     (layouts/with-margin 50
       (layouts/center-horizontally
-       (layouts/vertically-2 {:margin 50}
+       (layouts/vertically-2 {:margin 50 :centered? true}
                              (layouts/horizontally-2 {:margin 20}
                                                      (for [player-id (keys (:players state))]
                                                        (button (get-in state [:players player-id :name])
@@ -426,8 +426,7 @@
                                                                                             :corner-arc-radius 20)
                                                                        (teksti (str (:x exercise) " * " (:y exercise) (if (:show-scores? state)
                                                                                                                         (str " " (exercise-score player-history exercise))
-                                                                                                                        "")
-                                                                                    )
+                                                                                                                        ""))
                                                                                tekstin-koko
                                                                                (if selected?
                                                                                  [0 0 0 255]
@@ -456,6 +455,13 @@
                                                                                                                               (conj selected-exericses
                                                                                                                                     exercise)))))))
                                                                        event)})))
+                             (teksti (str "Average: " (format "%.2f"
+                                                              (/ (->> (map (partial exercise-score player-history)
+                                                                           all-exercises)
+                                                                      (reduce +))
+                                                                 (count all-exercises))))
+                                     60
+                                     [50 180 50 255])
                              (layouts/horizontally-2 {:margin 10}
                                                      [button "Clear (c)"
                                                       [50 50 50 255]
@@ -475,14 +481,7 @@
                                                      [button "Play! (space)"
                                                       [50 50 50 255]
                                                       [250 250 250 255]
-                                                      (fn [] (start-game state-atom))])
-                             (teksti (str "Average: " (format "%.2f"
-                                                              (/ (->> (map (partial exercise-score player-history)
-                                                                           all-exercises)
-                                                                      (reduce +))
-                                                                 (count all-exercises))))
-                                     60
-                                     [50 180 50 255]))))))
+                                                      (fn [] (start-game state-atom))]))))))
 
 (def state-file-name "times-table-state.edn")
 
