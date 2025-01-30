@@ -391,6 +391,10 @@
 (defn toggle-scores [state-atom]
   (swap! state-atom update :show-scores? not))
 
+(defn change-to-next-player [state-atom]
+  (swap! state-atom assoc :player (first (remove #{(:player @state-atom)}
+                                                 (sort (keys (:players @state-atom)))))))
+
 (defn menu-view [state-atom]
   (let [state @state-atom
         player-history (get-in state [:players (:player state) :history])]
@@ -459,7 +463,8 @@
                                                               (/ (->> (map (partial exercise-score player-history)
                                                                            all-exercises)
                                                                       (reduce +))
-                                                                 (count all-exercises))))
+                                                                 (count all-exercises)))
+                                          " / 5")
                                      60
                                      [50 180 50 255])
                              (layouts/horizontally-2 {:margin 10}
@@ -524,7 +529,11 @@
 
       (when (and (= :key-pressed (:type event))
                  (= :r (:key event)))
-        (add-random-exercise state-atom)))
+        (add-random-exercise state-atom))
+
+      (when (and (= :key-pressed (:type event))
+                 (= :tab (:key event)))
+        (change-to-next-player state-atom)))
 
     (when (= :game (:state state))
       (if (and (:finished? state)
