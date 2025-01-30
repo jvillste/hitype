@@ -465,22 +465,22 @@
                              (layouts/horizontally-2 {:margin 10}
                                                      [button "Clear (c)"
                                                       [50 50 50 255]
-                                                      [250 250 250 255]
+                                                      [180 180 180 255]
                                                       (fn []
                                                         (clear-selected-exercises state-atom))]
                                                      [button "Add random (r)"
                                                       [50 50 50 255]
-                                                      [250 250 250 255]
+                                                      [180 180 180 255]
                                                       (fn []
                                                         (add-random-exercise state-atom))]
                                                      [button "Toggle scores (g)"
                                                       [50 50 50 255]
-                                                      [250 250 250 255]
+                                                      [180 180 180 255]
                                                       (fn []
                                                         (toggle-scores state-atom))]
                                                      [button "Play! (space)"
                                                       [50 50 50 255]
-                                                      [250 250 250 255]
+                                                      [180 180 180 255]
                                                       (fn [] (start-game state-atom))]))))))
 
 (def state-file-name "times-table-state.edn")
@@ -526,64 +526,65 @@
                  (= :r (:key event)))
         (add-random-exercise state-atom)))
 
-
-    (when (and (= :key-pressed (:type event))
-               (some #{(:key event)}
-                     answer-keys)
-               (not (animation/animating? @animation/state-atom :wrong-answer answer-animation-duration)))
-
-      (if (:finished? state)
+    (when (= :game (:state state))
+      (if (and (:finished? state)
+               (= :key-pressed (:type event)))
         (do (animation/swap-state! animation/delete :finish)
             (swap! state-atom save-game)
             (swap! state-atom assoc :state :menu))
-        (let [answer (get (:options state)
-                          (anwser-key-to-option-index (:key event)))
-              right-answer? (= (* (:x (:exercise state))
-                                  (:y (:exercise state)))
-                               answer)
-              state (update-in state
-                               [:points (:exercise state)]
-                               (fn [points]
-                                 (let [points (or points 0)
-                                       points (if right-answer?
-                                                (inc points)
-                                                (dec points))]
-                                   (-> points
-                                       (max (- maximum-exercise-points))
-                                       (min maximum-exercise-points)))))
-              state (update state :exercise-durations conj
-                            {:exercise (:exercise state)
-                             :time (now)
-                             :duration (- (now)
-                                          (:exercise-start-time state))
-                             :right-answer? right-answer?})
-              next-exercise (next-exercise state)
-              finished? (not (some? next-exercise))]
+        (when (and (= :key-pressed (:type event))
+                   (some #{(:key event)}
+                         answer-keys)
+                   (not (animation/animating? @animation/state-atom :wrong-answer answer-animation-duration)))
 
-          (reset! state-atom
-                  (let [state (-> state
-                                  (assoc :finished? finished?
-                                         :previous-answer-time (now)
-                                         :previous-answer answer)
-                                  (cond-> (some? next-exercise)
-                                    (initialize-exercise next-exercise)))]
-                    (if (some? next-exercise)
-                      (if right-answer?
-                        (initialize-exercise state next-exercise)
-                        (do (.start (Thread. (fn []
-                                               (Thread/sleep answer-animation-duration)
-                                               (swap! state-atom initialize-exercise next-exercise))))
-                            state))
-                      state)))
+          (let [answer (get (:options state)
+                            (anwser-key-to-option-index (:key event)))
+                right-answer? (= (* (:x (:exercise state))
+                                    (:y (:exercise state)))
+                                 answer)
+                state (update-in state
+                                 [:points (:exercise state)]
+                                 (fn [points]
+                                   (let [points (or points 0)
+                                         points (if right-answer?
+                                                  (inc points)
+                                                  (dec points))]
+                                     (-> points
+                                         (max (- maximum-exercise-points))
+                                         (min maximum-exercise-points)))))
+                state (update state :exercise-durations conj
+                              {:exercise (:exercise state)
+                               :time (now)
+                               :duration (- (now)
+                                            (:exercise-start-time state))
+                               :right-answer? right-answer?})
+                next-exercise (next-exercise state)
+                finished? (not (some? next-exercise))]
 
-          (if finished?
-            (animation/swap-state! animation/start :finish)
-            (if right-answer?
-              (animation/swap-state! animation/start :right-answer)
-              (animation/swap-state! animation/start :wrong-answer)))
+            (reset! state-atom
+                    (let [state (-> state
+                                    (assoc :finished? finished?
+                                           :previous-answer-time (now)
+                                           :previous-answer answer)
+                                    (cond-> (some? next-exercise)
+                                      (initialize-exercise next-exercise)))]
+                      (if (some? next-exercise)
+                        (if right-answer?
+                          (initialize-exercise state next-exercise)
+                          (do (.start (Thread. (fn []
+                                                 (Thread/sleep answer-animation-duration)
+                                                 (swap! state-atom initialize-exercise next-exercise))))
+                              state))
+                        state)))
 
-          (reset! points-atom
-                  (:points @state-atom)))))))
+            (if finished?
+              (animation/swap-state! animation/start :finish)
+              (if right-answer?
+                (animation/swap-state! animation/start :right-answer)
+                (animation/swap-state! animation/start :wrong-answer)))
+
+            (reset! points-atom
+                    (:points @state-atom))))))))
 
 (defn root-view []
   (let [state-atom (atom (assoc (read-string (slurp state-file-name))
