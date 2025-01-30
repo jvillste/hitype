@@ -97,10 +97,11 @@
   )
 
 (defn speed-points [duration]
-  (int (max 0
-            (Math/floor (/ (- 6000
-                              duration)
-                           1000)))))
+  (int (min 5
+            (max 0
+                 (Math/floor (/ (- 6000
+                                   duration)
+                                1000))))))
 
 (defn scores [state]
   (animation/swap-state! animation/set-wake-up 1000)
@@ -128,12 +129,11 @@
 (def answer-animation-duration 2000)
 
 (defn- game-view  [state]
-  (let [finish-phase (or (animation/phase! :finish 2000)
+  (let [finish-phase (or (animation/phase! :finish)
                          0)
 
         wrong-answer-is-animating? (animation/animating? @animation/state-atom
-                                                         :wrong-answer
-                                                         answer-animation-duration)]
+                                                         :wrong-answer)]
     (layouts/superimpose (visuals/rectangle-2 :fill-color
                                               (:background-color theme))
                          (layouts/center-horizontally
@@ -146,9 +146,7 @@
                               (layouts/with-margin 50
                                 (layouts/vertically-2 {:margin 20 :centered? true}
                                                       (when (not (:finished? state))
-                                                        (let [{:keys [x y]} (if wrong-answer-is-animating?
-                                                                              (:previous-exercise state)
-                                                                              (:exercise state))]
+                                                        (let [{:keys [x y]} (:exercise state)]
                                                           (teksti (if (:show-numbers-the-other-way-around? state)
                                                                     (str y " * " x)
                                                                     (str x " * " y)))))
@@ -157,8 +155,8 @@
                                                                               (layouts/with-margin 10
                                                                                 (teksti value tekstin-koko
                                                                                         (if wrong-answer-is-animating?
-                                                                                          (let [right-answer (* (:x (:previous-exercise state))
-                                                                                                                (:y (:previous-exercise state)))]
+                                                                                          (let [right-answer (* (:x (:exercise state))
+                                                                                                                (:y (:exercise state)))]
                                                                                             (cond (= right-answer value)
                                                                                                   [0 150 0 255]
 
@@ -169,9 +167,7 @@
                                                                                                   :else
                                                                                                   (:text-color theme)))
                                                                                           (:text-color theme)))))
-                                                                            (if wrong-answer-is-animating?
-                                                                              (:previous-options state)
-                                                                              (:options state)))
+                                                                            (:options state))
                                                                        (map (fn [anser-key]
                                                                               (layouts/with-margin 10 (teksti (name anser-key))))
                                                                             answer-keys)]))
@@ -196,11 +192,9 @@
                                                                                       (layouts/superimpose (layouts/horizontally-2 {:margin 5}
                                                                                                                                    (concat (repeat (abs points)
                                                                                                                                                    (block (let [opacity (if (and (or (animation/animating? @animation/state-atom
-                                                                                                                                                                                                           :right-answer
-                                                                                                                                                                                                           answer-animation-duration)
+                                                                                                                                                                                                           :right-answer)
                                                                                                                                                                                      (animation/animating? @animation/state-atom
-                                                                                                                                                                                                           :wrong-answer
-                                                                                                                                                                                                           answer-animation-duration))
+                                                                                                                                                                                                           :wrong-answer))
                                                                                                                                                                                  (= (:previous-exercise state)
                                                                                                                                                                                     exercise))
                                                                                                                                                                           (animation/sine 0 255 0.4
@@ -262,7 +256,8 @@
                                                                                                                           (block (if (:right-answer? exercise-duration)
                                                                                                                                    [0 80 0 255]
                                                                                                                                    [80 0 0 255])))))))
-                                                                                (when (not (:finished? state))
+                                                                                (when (and (not (:finished? state))
+                                                                                           (not wrong-answer-is-animating?))
                                                                                   (let [remaining-speed-points (speed-points (- (now)
                                                                                                                                 (:exercise-start-time state)))]
                                                                                     (when (< 0 remaining-speed-points)
@@ -287,7 +282,7 @@
                                                      :right-answer
                                                      answer-animation-duration)
                            (layouts/center-horizontally
-                            (let [phase (animation/phase! :right-answer answer-animation-duration)
+                            (let [phase (animation/phase! :right-answer)
                                   color [0 150 0 (- 255
                                                     (-> (animation/exponential-ease-in phase 2)
                                                         (animation/linear-mapping 0 155)))]
@@ -306,7 +301,7 @@
                                                      :wrong-answer
                                                      answer-animation-duration)
                            (layouts/center-horizontally
-                            (let [phase (animation/phase! :wrong-answer answer-animation-duration)
+                            (let [phase (animation/phase! :wrong-answer)
                                   color [150 0 0 (- 255
                                                     (-> (animation/exponential-ease-in phase 2)
                                                         (animation/linear-mapping 0 155)))]
@@ -432,7 +427,8 @@
                                                                                                            255])
                                                                                             :corner-arc-radius 20)
                                                                        (teksti (str (:x exercise) " * " (:y exercise) (if (:show-scores? state)
-                                                                                                                        (str " " (exercise-score player-history exercise))
+                                                                                                                        (str " = " (* (:x exercise) (:y exercise))
+                                                                                                                             " " (exercise-score player-history exercise))
                                                                                                                         ""))
                                                                                tekstin-koko
                                                                                (if selected?
@@ -574,26 +570,22 @@
                 finished? (not (some? next-exercise))]
 
             (reset! state-atom
-                    (let [state (-> state
-                                    (assoc :finished? finished?
-                                           :previous-answer-time (now)
-                                           :previous-answer answer)
-                                    (cond-> (some? next-exercise)
-                                      (initialize-exercise next-exercise)))]
-                      (if (some? next-exercise)
-                        (if right-answer?
-                          (initialize-exercise state next-exercise)
-                          (do (.start (Thread. (fn []
-                                                 (Thread/sleep answer-animation-duration)
-                                                 (swap! state-atom initialize-exercise next-exercise))))
-                              state))
-                        state)))
+                    (-> state
+                        (assoc :finished? finished?
+                               :previous-answer-time (now)
+                               :previous-answer answer)
+                        (cond-> (and (some? next-exercise)
+                                     right-answer?)
+                          (initialize-exercise next-exercise))))
 
             (if finished?
-              (animation/swap-state! animation/start :finish)
+              (animation/swap-state! animation/start :finish 2000)
               (if right-answer?
-                (animation/swap-state! animation/start :right-answer)
-                (animation/swap-state! animation/start :wrong-answer)))
+                (animation/swap-state! animation/start :right-answer answer-animation-duration)
+                (do (animation/swap-state! animation/add-animation-end-callback :wrong-answer (fn []
+                                                                                                (when (some? next-exercise)
+                                                                                                  (swap! state-atom initialize-exercise next-exercise))))
+                    (animation/swap-state! animation/start :wrong-answer answer-animation-duration))))
 
             (reset! points-atom
                     (:points @state-atom))))))))
