@@ -54,6 +54,7 @@
       (assoc :previous-exercise (:exercise state)
              :previous-options (:options state)
              :exercise-start-time (now)
+             :show-numbers-the-other-way-around? (< 0.5 (rand))
              :exercise exercise
              :options (let [right-answer (* (:x exercise)
                                             (:y exercise))]
@@ -148,7 +149,9 @@
                                                         (let [{:keys [x y]} (if wrong-answer-is-animating?
                                                                               (:previous-exercise state)
                                                                               (:exercise state))]
-                                                          (teksti (str x " * " y))))
+                                                          (teksti (if (:show-numbers-the-other-way-around? state)
+                                                                    (str y " * " x)
+                                                                    (str x " * " y)))))
                                                       (when (not (:finished? state))
                                                         (layouts/grid [(map (fn [value]
                                                                               (layouts/with-margin 10
