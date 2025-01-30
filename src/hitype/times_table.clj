@@ -388,6 +388,8 @@
                                                          (first))]
                                 #{new-exercise}
                                 #{})))))
+(defn toggle-scores [state-atom]
+  (swap! state-atom update :show-scores? not))
 
 (defn menu-view [state-atom]
   (let [state @state-atom
@@ -455,20 +457,32 @@
                                                                                                                                     exercise)))))))
                                                                        event)})))
                              (layouts/horizontally-2 {:margin 10}
-                                                     [button "Clear"
+                                                     [button "Clear (c)"
                                                       [50 50 50 255]
                                                       [250 250 250 255]
                                                       (fn []
                                                         (clear-selected-exercises state-atom))]
-                                                     [button "Add random"
+                                                     [button "Add random (r)"
                                                       [50 50 50 255]
                                                       [250 250 250 255]
                                                       (fn []
                                                         (add-random-exercise state-atom))]
-                                                     [button "Play!"
+                                                     [button "Toggle scores (g)"
                                                       [50 50 50 255]
                                                       [250 250 250 255]
-                                                      (fn [] (start-game state-atom))]))))))
+                                                      (fn []
+                                                        (toggle-scores state-atom))]
+                                                     [button "Play! (space)"
+                                                      [50 50 50 255]
+                                                      [250 250 250 255]
+                                                      (fn [] (start-game state-atom))])
+                             (teksti (str "Average: " (format "%.2f"
+                                                              (/ (->> (map (partial exercise-score player-history)
+                                                                           all-exercises)
+                                                                      (reduce +))
+                                                                 (count all-exercises))))
+                                     60
+                                     [50 180 50 255]))))))
 
 (def state-file-name "times-table-state.edn")
 
@@ -498,8 +512,8 @@
 
     (when (= :menu (:state state))
       (when (and (= :key-pressed (:type event))
-                 (= :n (:key event)))
-        (swap! state-atom update :show-scores? not))
+                 (= :g (:key event)))
+        (toggle-scores state-atom))
 
       (when (and (= :key-pressed (:type event))
                  (= :space (:key event)))
