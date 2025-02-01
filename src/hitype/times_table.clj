@@ -361,6 +361,36 @@
                            (filter :right-answer? relevant-durations)))
               10))))
 
+(defn average-exercise-duration-in-seconds [durations exercise]
+  (let [relevant-durations (->> durations
+                                (filter (fn [duration]
+                                          (= exercise (:exercise duration))))
+                                (sort-by :time)
+                                (take-last 10))]
+    (float (/ (+ (reduce +
+                         (map (fn [duration]
+                                (min 5000 (:duration duration)))
+                              (filter :right-answer? relevant-durations)))
+                 (* 5000 (- 10 (count (filter :right-answer? relevant-durations)))))
+              10
+              1000))))
+
+(deftest test-average-exercise-duration-in-seconds
+  (is (= 5.0
+         (average-exercise-duration-in-seconds []
+                                               {:x 2 :y 2})))
+
+  (is (= 4.5
+         (average-exercise-duration-in-seconds [{:exercise {:x 2 :y 2}
+                                                 :right-answer? true
+                                                 :duration 0}]
+                                               {:x 2 :y 2})))
+  (is (= 5.0
+         (average-exercise-duration-in-seconds [{:exercise {:x 2 :y 2}
+                                                 :right-answer? true
+                                                 :duration 10000}]
+                                               {:x 2 :y 2}))))
+
 (defn start-game [state-atom]
   (when (not (empty? (:selected-exercises @state-atom)))
     (swap! state-atom (fn [state]
@@ -377,17 +407,49 @@
   (swap! state-atom (fn [state]
                       (update state :selected-exercises
                               set/union
-                              (if-let [new-exercise (->> all-exercises
-                                                         (remove (set (:selected-exercises state)))
-                                                         (sort-by (fn [exercise]
-                                                                    [(exercise-score (get-in state [:players (:player state) :history])
-                                                                                     exercise)
-                                                                     (rand)]))
-                                                         (first))]
+                              (if-let [new-exercise (dissoc (->> all-exercises
+                                                                 (remove (set (:selected-exercises state)))
+                                                                 (map (fn [exercise]
+                                                                        (assoc exercise
+                                                                               :sorting-value [(Math/round (* 5 (average-exercise-duration-in-seconds (get-in state [:players (:player state) :history])
+                                                                                                                                                      exercise)))
+
+                                                                                               (rand)])))
+                                                                 (sort-by :sorting-value)
+                                                                 (last))
+                                                            :sorting-value)]
                                 #{new-exercise}
                                 #{})))))
-(defn toggle-scores [state-atom]
-  (swap! state-atom update :show-scores? not))
+
+(defn toggle-average-druation [state-atom]
+  (swap! state-atom update :exercise-rendering (fn [rendering]
+                                                 (if (= rendering :average-duration)
+                                                   nil
+                                                   :average-duration))))
+
+(defn toggle-right-answer [state-atom]
+  (swap! state-atom update :exercise-rendering (fn [rendering]
+                                                 (if (= rendering :right-answer)
+                                                   nil
+                                                   :right-answer))))
+
+(comment
+  (def numbers (take 10 (repeatedly rand)))
+  (for [multiplier (range 1 100)]
+    (let [groups (vals (group-by (fn [number]
+                                   (Math/round (* multiplier number)))
+                                 numbers))]
+      [multiplier
+       (count groups)
+       ;; (->> groups
+       ;;      (sort-by first)
+       ;;      (map (fn [group]
+       ;;             (map (fn [number]
+       ;;                    [number (Math/round (* multiplier number))])
+       ;;                  group))))
+       ]))
+  ) ;; TODO: remove me
+
 
 (defn change-to-next-player [state-atom]
   (swap! state-atom assoc :player (first (remove #{(:player @state-atom)}
@@ -420,20 +482,29 @@
                                                           (layouts/box 5
                                                                        (visuals/rectangle-2 :fill-color (if selected?
                                                                                                           [50 180 50 255]
-                                                                                                          [30 30 (* (min 1
-                                                                                                                         (/ (exercise-score player-history exercise)
-                                                                                                                            5))
-                                                                                                                    255)
+                                                                                                          [0 0 (* (max 0
+                                                                                                                       (min 1
+                                                                                                                            (/ (- 5 (average-exercise-duration-in-seconds player-history exercise))
+                                                                                                                               5)))
+                                                                                                                  255)
                                                                                                            255])
                                                                                             :corner-arc-radius 20)
-                                                                       (teksti (str (:x exercise) " * " (:y exercise) (if (:show-scores? state)
-                                                                                                                        (str " = " (* (:x exercise) (:y exercise))
-                                                                                                                             " " (exercise-score player-history exercise))
-                                                                                                                        ""))
-                                                                               tekstin-koko
-                                                                               (if selected?
-                                                                                 [0 0 0 255]
-                                                                                 [200 200 200 255])))))
+                                                                       (layouts/with-minimum-size 100 nil
+                                                                         (layouts/with-maximum-size 100 nil
+                                                                           (layouts/center-horizontally
+                                                                            (teksti (case (:exercise-rendering state)
+
+                                                                                      :average-duration
+                                                                                      (format "%.2f" (average-exercise-duration-in-seconds player-history exercise))
+
+                                                                                      :right-answer
+                                                                                      (str (* (:x exercise) (:y exercise)))
+
+                                                                                      (str (:x exercise) " * " (:y exercise) ))
+                                                                                    tekstin-koko
+                                                                                    (if selected?
+                                                                                      [0 0 0 255]
+                                                                                      [200 200 200 255]))))))))
                                                 :mouse-event-handler (fn [_node event]
                                                                        (when (= :mouse-clicked (:type event))
                                                                          (let [similar-exercises (filter (fn [available-exercise]
@@ -458,16 +529,16 @@
                                                                                                                               (conj selected-exericses
                                                                                                                                     exercise)))))))
                                                                        event)})))
-                             (teksti (str "Average: " (format "%.2f"
-                                                              (/ (->> (map (partial exercise-score player-history)
-                                                                           all-exercises)
-                                                                      (reduce +))
-                                                                 (count all-exercises)))
-                                          " / 5")
+                             (teksti (str "Average duration: " (format "%.2f"
+                                                                       (/ (->> (map (partial average-exercise-duration-in-seconds player-history)
+                                                                                    all-exercises)
+                                                                               (reduce +))
+                                                                          (count all-exercises)))
+                                          "s")
                                      60
                                      [50 180 50 255])
                              (layouts/horizontally-2 {:margin 10}
-                                                     [button "Clear (c)"
+                                                     [button "Clear selection (e)"
                                                       [50 50 50 255]
                                                       [180 180 180 255]
                                                       (fn []
@@ -477,14 +548,22 @@
                                                       [180 180 180 255]
                                                       (fn []
                                                         (add-random-exercise state-atom))]
-                                                     [button "Toggle scores (g)"
+                                                     [button "Toggle average duration (x)"
                                                       [50 50 50 255]
                                                       [180 180 180 255]
                                                       (fn []
-                                                        (toggle-scores state-atom))]
-                                                     [button "Play! (space)"
+                                                        (toggle-average-druation state-atom))]
+
+                                                     [button "Toggle right answer (g)"
                                                       [50 50 50 255]
                                                       [180 180 180 255]
+                                                      (fn []
+                                                        (toggle-right-answer state-atom))]
+                                                     [button "Play! (space)"
+                                                      [50 50 50 255]
+                                                      (if (empty? (:selected-exercises @state-atom))
+                                                        [100 100 100 255]
+                                                        [180 180 180 255])
                                                       (fn [] (start-game state-atom))]))))))
 
 (def state-file-name "times-table-state.edn")
@@ -515,20 +594,27 @@
 
     (when (= :menu (:state state))
       (when (and (= :key-pressed (:type event))
+                 (= :x (:key event)))
+        (toggle-average-druation state-atom))
+
+      (when (and (= :key-pressed (:type event))
                  (= :g (:key event)))
-        (toggle-scores state-atom))
+        (toggle-right-answer state-atom))
 
       (when (and (= :key-pressed (:type event))
                  (= :space (:key event)))
         (start-game state-atom))
 
       (when (and (= :key-pressed (:type event))
-                 (= :c (:key event)))
+                 (= :e (:key event)))
         (clear-selected-exercises state-atom))
 
       (when (and (= :key-pressed (:type event))
                  (= :r (:key event)))
-        (add-random-exercise state-atom))
+        (if (:shift? event)
+          (doseq [_ (range 5)]
+            (add-random-exercise state-atom))
+          (add-random-exercise state-atom)))
 
       (when (and (= :key-pressed (:type event))
                  (= :tab (:key event)))
